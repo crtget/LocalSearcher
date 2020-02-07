@@ -47,6 +47,7 @@ namespace LocalSearcher
 
         public class Movie
         {
+            public int id;
             public int type;
             public string code;
             public string title;
@@ -71,6 +72,13 @@ namespace LocalSearcher
 
         }
 
+
+        public class CoverData
+        {
+            public int id;
+            public int mid;
+            public MemoryStream cover;
+        }
 
 
         public class TagData
@@ -183,7 +191,14 @@ namespace LocalSearcher
             //File.WriteAllText(Directory.GetCurrentDirectory() + "/test.txt", s);
 
 
-            GetMoviesList(3, 1, "暂无");
+
+
+
+            GetMoviesList(1, 1, "暂无");
+
+
+            
+            
 
             /*
             var r = GetMovieTags(4);
@@ -237,7 +252,6 @@ namespace LocalSearcher
             var reader = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
 
 
-
             while(reader.Read())
             {
                 int mid = reader.GetInt32(reader.GetOrdinal("id"));
@@ -256,10 +270,11 @@ namespace LocalSearcher
 
                 string name = reader.GetString(reader.GetOrdinal("name"));
                 string fname = reader.GetString(reader.GetOrdinal("fname"));
-                var cid = reader.GetInt32(reader.GetOrdinal("cover"));
-                var cover = GetMovieCover(cid);
+                var buffer = new byte[512000];
+                var length = reader.GetBytes(reader.GetOrdinal("cover"), 0, buffer, 0, buffer.Length);
+                MemoryStream cover = new MemoryStream(buffer);
 
-                if (cover.Length == 0)
+                if (length == 0)
                 {
                     cover = new MemoryStream(Convert.FromBase64String(nopic));
                 }
@@ -277,7 +292,7 @@ namespace LocalSearcher
                 SyncContext.Send(AddListItem, item);
 
                 var m = new Movie(fname);
-                m.type = type; m.code = code; m.title = title; m.tags = tags; m.stars = stars; m.name = name; m.fname = fname; m.cover = cover;
+                m.id = mid; m.type = type; m.code = code; m.title = title; m.tags = tags; m.stars = stars; m.name = name; m.fname = fname; m.cover = cover;
                 MovieList.Add(m);
             }
 
@@ -345,27 +360,7 @@ namespace LocalSearcher
 
 
 
-        public MemoryStream GetMovieCover(int cid)
-        {
-            string sql = "SELECT DATA FROM IMAGES WHERE ID = @ID";
-            MySqlParameter[] paramarr = { new MySqlParameter("@id", cid) };
-            var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
-            var buffer = new byte[512000];
-            var ms = new MemoryStream();
-
-            while (r.Read())
-            {
-                var length = r.GetBytes(r.GetOrdinal("DATA"), 0, buffer, 0, buffer.Length);
-
-                if (length > 0)
-                    ms.Write(buffer, 0, buffer.Length);
-
-            }
-
-
-            r.Close();
-            return ms;
-        }
+ 
 
         public TagData[] GetMovieTags(int mid)
         {
