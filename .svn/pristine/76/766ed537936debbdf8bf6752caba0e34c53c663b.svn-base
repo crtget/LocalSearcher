@@ -1,0 +1,1834 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.IO;
+using System.Data;
+using System.Data.SQLite;
+using System.Windows.Forms;
+
+namespace LocalSearcher
+{
+
+    public class ShootPathData
+    {
+        public int id { get; set; }
+        public string path { get; set; }
+        public DateTime lastshoot { get; set; }
+    }
+
+    public class ShootFileData
+    {
+        public int id { get; set; }
+        public string filename { get; set; }
+        public string fileext { get; set; }
+
+    }
+
+    public class TagData
+    {
+        public int id { get; set; }
+        public string tagname { get; set; }
+    }
+
+    public class TagFileData
+    {
+        public int id { get; set; }
+        public int fid { get; set; }
+        public int tid { get; set; }
+    }
+
+
+    public class UserData
+    {
+        public int id { get; set; }
+        public string name { get; set; }
+        public string nick { get; set; }
+        public int right { get; set; }
+        public string qq { get; set; }
+        public DateTime regtime { get; set; }
+        public DateTime lltime { get; set; }
+        public string llip { get; set; }
+    }
+
+    public class FUData
+    {
+        public int id { get; set; }
+        public string nick { get; set; }
+        public string qq { get; set; }
+    }
+
+    public class UserWorkCount
+    {
+        public int id { get; set; }
+        public int workcount { get; set; }
+    }
+
+    public class TaskData
+    {
+        public int id { get; set; }
+        public int type { get; set; }
+        public int status { get; set; }
+        public int wid { get; set; }
+        public int uid { get; set; }
+        public string uname { get; set; }
+        public int fuid { get; set; }
+        public string context { get; set; }
+        public string env { get; set; }
+        public DateTime atime { get; set; }
+        public DateTime ftime { get; set; }
+    }
+
+
+    public class TaskTypeData
+    {
+        public int id { get; set; }
+        public string text { get; set; }
+    }
+
+    public class WorkData
+    {
+        public int id { get; set; }
+        public int status { get; set; }
+        public int tid { get; set; }
+        public int uid { get; set; }
+        public string cause { get; set; }
+        public string context { get; set; }
+        public DateTime stime { get; set; }
+        public DateTime etime { get; set; }
+    }
+
+    public class SPData
+    {
+        public int sid { get; set; }
+        public int stid { get; set; }
+        public int suid { get; set; }
+        public string scontext { get; set; }
+        public DateTime stime { get; set; }
+    }
+
+    public class ImgData
+    {
+        public int iid { get; set; }
+        public int itype { get; set; }
+        public int itwid { get; set; }
+        public int iuid { get; set; }
+        public DateTime itime { get; set; }
+        public byte[] iblob { get; set; }
+
+        public ImgData(long imgsize)
+        {
+            this.iblob = new byte[imgsize];
+        }
+    }
+
+
+
+
+    public class LogData
+    {
+        public int lid { get; set; }
+        public int ltype { get; set; }
+        public string lcontext { get; set; }
+        public DateTime ltime { get; set; }
+    }
+    public class DBModel : IDisposable
+    {
+        private string _dbfile = ".\\db\\db.db";
+        private string _lasterr;
+
+        private long _lastinsertid;
+        public long LastInsertId
+        {
+            get { return this._lastinsertid; }
+        }
+
+        /// <summary> 
+        /// 当前操作的数据文件 
+        /// </summary> 
+        public string DBFile
+        {
+            get { return this._dbfile; }
+        }
+
+        /// <summary> 
+        /// 取得最后一次的错误信息
+        /// </summary> 
+        public string LastErr
+        {
+            get { return this._lasterr; }
+        }
+
+
+        /// <summary> 
+        /// 构造函数 
+        /// </summary> 
+        public DBModel()
+        {
+
+            string fullpath = Path.GetDirectoryName(Path.GetFullPath(this._dbfile));
+
+            if (!Directory.Exists(fullpath))
+                Directory.CreateDirectory(fullpath);
+            if (!File.Exists(this._dbfile))
+                CreateTable();
+        }
+
+
+
+        /// <summary> 
+        /// 析构函数 
+        /// </summary> 
+        public void Dispose()
+        {
+            //throw new NotImplementedException();
+        }
+
+        /// <summary> 
+        /// 创建数据表结构 
+        /// </summary> 
+        public bool CreateTable()
+        {
+            try
+            {
+                if (!File.Exists(this._dbfile))
+                {
+                    SQLiteHelper.CreateDB(this._dbfile);
+                }
+                string sql = "CREATE TABLE SHOOTPATH(ID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, PATH TEXT UNIQUE NOT NULL, LASTSHOOT DATETIME);";
+                sql += "CREATE TABLE SHOOTFILE(ID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, FILENAME TEXT NOT NULL, FILEEXT TEXT);";
+                sql += "CREATE TABLE TAG(ID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, TAGNAME TEXT NOT NULL);";
+                sql += "CREATE TABLE TAGFILE(ID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, FID INTEGER NOT NULL, TID INTEGER NOT NULL)";
+
+                using (SQLiteHelper db = new SQLiteHelper(this._dbfile))
+                {
+                    db.ExecuteNonQuery(sql, null);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 添加快照路径
+        /// </summary> 
+        /// <param name="path">快照路径</param> 
+        public bool AddShootPath(string path)
+        {
+            try
+            {
+                string sql = "INSERT INTO SHOOTPATH (PATH) VALUES (@PATH)";
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                { 
+                    new SQLiteParameter("@PATH", path)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+
+        /// <summary> 
+        /// 存储快照文件信息
+        /// </summary> 
+        /// <param name="filename">快照文件</param> 
+        public bool AddShootFile(FileInfo finfo)
+        {
+            try
+            {
+                string sql = "INSERT INTO SHOOTFILE (FILENAME, FILEEXT) VALUES (@FILENAME, @FILEEXT)";
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                { 
+                    new SQLiteParameter("@FILENAME", finfo.FullName),
+                    new SQLiteParameter("@FILEEXT", finfo.Extension)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 存储快照文件信息组
+        /// </summary> 
+        /// <param name="filename">快照文件</param> 
+        public void AddShootFiles(List<FileInfo> finfos)
+        {
+            try
+            {
+                string sql = "INSERT INTO SHOOTFILE (FILENAME, FILEEXT) VALUES (@FILENAME, @FILEEXT)";
+                List<SQLiteParameter[]> parameters = new List<SQLiteParameter[]>(); 
+
+                foreach (FileInfo finfo in finfos)
+                {
+                    SQLiteParameter[] param = new SQLiteParameter[]
+                    { 
+                        new SQLiteParameter("@FILENAME", finfo.FullName),
+                        new SQLiteParameter("@FILEEXT", finfo.Extension)
+                    };
+
+                    parameters.Add(param);
+                }
+
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuerys(sql, parameters);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+            }
+
+        }
+
+
+
+
+        /// <summary> 
+        /// 新建反馈人员
+        /// </summary> 
+        /// <param name="unick">用户昵称</param> 
+        /// <param name="ucontact">用户联系方式</param> 
+        public bool AddUser_F(string unick, string ucontact)
+        {
+            try
+            {
+                string sql = "INSERT INTO USERFTB (UNICK, UCONTACT) VALUES (@UNICK, @UCONTACT)";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                { 
+                    new SQLiteParameter("@UNICK", unick),
+                    new SQLiteParameter("@UCONTACT", ucontact)
+
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 添加任务
+        /// </summary> 
+        /// <param name="ttype">任务类型(0=普通任务,1=加急任务)</param> 
+        /// <param name="ruid">记录人UID</param> 
+        /// <param name="trtime">任务添加时间</param>
+        /// <param name="tname">用户名</param>
+        /// <param name="tfuid">FUID</param>
+        /// <param name="tcontext">任务描述</param>
+        /// <param name="tfb">反馈人</param>
+        /// <param name="tenv">环境信息</param>
+        /// <param name="timg">问题图片</param>
+
+        public bool AddTask(int ttype, int ruid, DateTime trtime, string tname, int tfuid, string tcontext = null, string tenv = null, string timg = null)
+        {
+            try
+            {
+                string sql = "INSERT INTO TASKTB (TTYPE, RUID, TNAME, TFUID, TCONTEXT, TENV, TRTIME) VALUES (@TTYPE, @RUID, @TNAME, @TFUID, @TCONTEXT, @TENV, @TRTIME)";
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@TTYPE", ttype),
+                    new SQLiteParameter("@RUID", ruid),
+                    new SQLiteParameter("@TNAME", tname),
+                    new SQLiteParameter("@TFUID", tfuid),
+                    new SQLiteParameter("@TCONTEXT", tcontext),
+                    new SQLiteParameter("@TENV", tenv),
+                    new SQLiteParameter("@WTID", tenv),
+                    new SQLiteParameter("@WUID", tenv),
+                    new SQLiteParameter("@WID", tenv),
+                    new SQLiteParameter("@TRTIME", trtime)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                    this._lastinsertid = db.LastInsertId;
+                }
+
+                if (timg != null)
+                    AddImgData(0, (Int32)this._lastinsertid, 0, timg);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+
+        /// <summary> 
+        /// 更新任务
+        /// </summary> 
+        /// <param name="tid">任务TID</param> 
+        /// <param name="ttype">任务类型(0=普通任务,1=加急任务)</param> 
+        /// <param name="ruid">记录人UID</param> 
+        /// <param name="trtime">任务添加时间</param>
+        /// <param name="tname">用户名</param>
+        /// <param name="tfuid">FUID</param>
+        /// <param name="tcontext">任务描述</param>
+        /// <param name="tfb">反馈人</param>
+        /// <param name="tenv">环境信息</param>
+        /// <param name="timg">问题图片</param>
+
+        public bool UpdateTask(int tid, int ttype, int ruid, DateTime utime, string tname, int tfuid, string tcontext = null, string tenv = null, string timg = null)
+        {
+            try
+            {
+                string sql = "UPDATE TASKTB SET TTYPE = @TTYPE, RUID = @RUID, TNAME = @TNAME, TFUID = @TFUID, TCONTEXT = @TCONTEXT, TENV = @TENV, TRTIME = @TRTIME WHERE ID = @ID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@TTYPE", ttype),
+                    new SQLiteParameter("@RUID", ruid),
+                    new SQLiteParameter("@TNAME", tname),
+                    new SQLiteParameter("@TFUID", tfuid),
+                    new SQLiteParameter("@TCONTEXT", tcontext),
+                    new SQLiteParameter("@TENV", tenv),
+                    new SQLiteParameter("@TRTIME", utime),
+                    new SQLiteParameter("@ID", tid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+
+                ImgData idata;
+                if (!GetImgData(0, tid, out idata))
+                    AddImgData(0, tid, 0, timg);
+                else
+                    UpdateImgData(0, tid, timg);
+
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 更新工作
+        /// </summary> 
+        /// <param name="wid">工作WID</param> 
+        /// <param name="wstime">工作开始时间</param> 
+
+        public bool UpdateWork(int wid, DateTime wstime)
+        {
+            try
+            {
+                string sql = "UPDATE WORKTB SET WSTIME = @WSTIME WHERE ID = @WID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@WSTIME", wstime),
+                    new SQLiteParameter("@WID", wid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 添加协助者
+        /// </summary> 
+        /// <param name="swid">WID</param> 
+        /// <param name="suid">协助者UID</param> 
+        /// <param name="scontext">协助意见</param>
+
+        public bool AddSP(int swid, int suid, string scontext = null)
+        {
+            try
+            {
+                string sql = "INSERT INTO SPTB (SWID, SUID, SCONTEXT, STIME) VALUES (@SWID, @SUID, @SCONTEXT, @STIME)";
+                DateTime nowtime = DateTime.Now;
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@SWID", swid),
+                    new SQLiteParameter("@SUID", suid),
+                    new SQLiteParameter("@SCONTEXT", scontext),
+                    new SQLiteParameter("@STIME", nowtime)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 获取协助数据
+        /// </summary> 
+        /// <param name="sWid">WID</param> 
+        /// <param name="spdatal">返回协助数据列表</param> 
+
+        public bool GetSPDataL(int swid, ref List<SPData> spdatal)
+        {
+            try
+            {
+                string sql = "SELECT ID, SWID, SUID, SCONTEXT, STIME FROM SPTB WHERE SWID = @SWID";
+                DateTime nowtime = DateTime.Now;
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@SWID", swid)
+                };
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("协助数据未找到!");
+
+                        while (reader.Read())
+                        {
+                            SPData sdata = new SPData();
+                            sdata.sid = reader.GetInt32(0);
+                            sdata.stid = reader.GetInt32(1);
+                            sdata.suid = reader.GetInt32(2);
+                            if (!reader.IsDBNull(3))
+                                sdata.scontext = reader.GetString(3);
+                            sdata.stime = reader.GetDateTime(4);
+                            spdatal.Add(sdata);
+                        }
+
+                    }
+
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                spdatal = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 添加任务分类
+        /// </summary> 
+        /// <param name="typetext">分类名</param> 
+
+        public bool AddTaskType(string typetext)
+        {
+            try
+            {
+                string sql = "INSERT INTO TASKTYPETB (TTEXT) VALUES (@TTEXT)";
+                DateTime nowtime = DateTime.Now;
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@TTEXT", typetext)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 派发任务
+        /// </summary> 
+        /// <param name="wtid">需要派发的任务TID</param> 
+        /// <param name="wuid">派发目标用户的UID</param> 
+
+        public bool SendTask(int wtid, int wuid)
+        {
+            try
+            {
+
+
+                long lastwid;
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    string sql = "INSERT INTO WORKTB (WTID, WUID) VALUES (@WTID, @WUID)";
+
+                    SQLiteParameter[] parameters = new SQLiteParameter[]
+                    {
+                        new SQLiteParameter("@WTID", wtid),
+                        new SQLiteParameter("@WUID", wuid)
+                    };
+
+                    db.ExecuteNonQuery(sql, parameters);
+                    lastwid = db.LastInsertId;
+                }
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    string sql = "UPDATE TASKTB SET WID = @WID WHERE ID = @TID";
+
+                    SQLiteParameter[] parameters = new SQLiteParameter[]
+                    {
+                        new SQLiteParameter("@WID", lastwid),
+                        new SQLiteParameter("@TID", wtid)
+                    };
+
+                    db.ExecuteNonQuery(sql, parameters);
+
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 转派任务
+        /// </summary> 
+        /// <param name="tid">需要转派的任务TID</param> 
+        /// <param name="nuid">转派任务目标处理者的UID</param> 
+        /// <param name="owid">转派任务当前WID</param>
+        public bool ReSendTask(int tid, int nuid, int owid)
+        {
+            try
+            {
+
+                if (!SendTask(tid, nuid))
+                    return false;
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    string sql = "UPDATE WORKTB SET WSTATUS = 1, WETIME = @WETIME WHERE ID = @WID";
+                    DateTime wetime = DateTime.Now;
+
+
+                    SQLiteParameter[] parameters = new SQLiteParameter[]
+                    {
+                        new SQLiteParameter("@WETIME", wetime),
+                        new SQLiteParameter("@WID", owid)
+                    };
+
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+
+        /// <summary> 
+        /// 归档任务
+        /// </summary> 
+        /// <param name="tid">需要归档的任务TID</param> 
+        /// <param name="wid">需要归档的工作WID</param> 
+        /// <param name="tftime">任务归档时间</param> 
+        /// <param name="wcause">造成问题的原因</param>
+        /// <param name="wcontext">解决问题的过程</param>
+        /// <param name="filework">是否归档工作</param>
+        public bool FileTask(int tid, int wid, DateTime tftime, string wcause, string wcontext, bool filework = false)
+        {
+            try
+            {
+                if (filework)
+                    FileWork(tid, wid, tftime, 1, wcause, wcontext);
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    string sql = "UPDATE TASKTB SET TSTATUS = 2, WID = @WID, TFTIME = @TFTIME WHERE ID = @TID";
+
+                    SQLiteParameter[] parameters = new SQLiteParameter[]
+                    {
+                        new SQLiteParameter("@WID", wid),
+                        new SQLiteParameter("@TFTIME", tftime),
+                        new SQLiteParameter("@TID", tid)
+                    };
+
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 归档工作
+        /// </summary> 
+        /// <param name="tid">需要归档的任务TID</param> 
+        /// <param name="wid">需要归档的工作WID</param> 
+        /// <param name="tftime">任务归档时间</param> 
+        /// <param name="wcause">造成问题的原因</param>
+        /// <param name="wcontext">解决问题的过程</param>
+        /// <param name="wstatus">任务归档状态{0=已开始 1=已解决 2=中断 3=未解决}</param>
+        public bool FileWork(int tid, int wid, DateTime tftime, int wstatus, string wcause = null, string wcontext = null)
+        {
+            try
+            {
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    string sql = "UPDATE WORKTB SET WSTATUS = @WSTATUS, WCAUSE = @WCAUSE, WCONTEXT = @WCONTEXT, WETIME = @WETIME WHERE ID = @WID;";
+                    SQLiteParameter[] parameters;
+                    if (wstatus != 1)
+                    {
+                        sql += "UPDATE TASKTB SET WID = 0 WHERE ID = @TID AND WID = @WID";
+
+                        parameters = new SQLiteParameter[]
+                        {
+                        new SQLiteParameter("@WSTATUS", wstatus),
+                        new SQLiteParameter("@WCAUSE", wcause),
+                        new SQLiteParameter("@WCONTEXT", wcontext),
+                        new SQLiteParameter("@WETIME", tftime),
+                        new SQLiteParameter("@WID", wid),
+                        new SQLiteParameter("@TID", tid),
+                        new SQLiteParameter("@WID", wid)
+                        };
+                    }
+                    else
+                    {
+
+                        parameters = new SQLiteParameter[]
+                        {
+                        new SQLiteParameter("@WSTATUS", wstatus),
+                        new SQLiteParameter("@WCAUSE", wcause),
+                        new SQLiteParameter("@WCONTEXT", wcontext),
+                        new SQLiteParameter("@WETIME", tftime),
+                        new SQLiteParameter("@WID", wid)
+                        };
+
+                    }
+
+
+
+
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+
+        /// <summary> 
+        /// 存储图片文件
+        /// </summary> 
+        /// <param name="itype">图片类型(0=任务图片,1=工作图片)</param> 
+        /// <param name="itwid">对应TID/WID</param> 
+        /// <param name="iuid">上传者UID</param> 
+        /// <param name="imgfile">需要保存图片的完整路径</param>
+        public bool AddImgData(int itype, int itwid, int iuid, string imgfile)
+        {
+            try
+            {
+                string sql = "INSERT INTO IMGTB (ITYPE, ITWID, IUID, IBLOB) VALUES (@ITYPE, @ITWID, @IUID, @IBLOB)";
+
+                if (!File.Exists(imgfile))
+                    throw new Exception("未找到图片文件!");
+
+
+                FileStream imgfs = new FileStream(imgfile, FileMode.Open);
+
+
+                byte[] iblob = new byte[imgfs.Length];
+                imgfs.Read(iblob, 0, iblob.Length);
+                imgfs.Close();
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                { 
+                    new SQLiteParameter("@ITYPE", itype),
+                    new SQLiteParameter("@ITWID", itwid),
+                    new SQLiteParameter("@IUID", iuid),
+                    new SQLiteParameter("@IBLOB", DbType.Binary, iblob.Length, ParameterDirection.Input, false, 0, 0, null, DataRowVersion.Current, iblob)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 更新图片文件
+        /// </summary> 
+        /// <param name="itype">图片类型(0=任务图片,1=工作图片)</param> 
+        /// <param name="itwid">对应TID/WID</param> 
+        /// <param name="iuid">上传者UID</param> 
+        /// <param name="imgfile">需要保存图片的完整路径</param>
+        public bool UpdateImgData(int itype, int itwid, string imgfile)
+        {
+            try
+            {
+                string sql = "UPDATE IMGTB SET IBLOB = @IBLOB WHERE ITYPE = @ITYPE AND ITWID = @ITWID";
+
+                if (!File.Exists(imgfile))
+                    throw new Exception("未找到图片文件!");
+
+
+                FileStream imgfs = new FileStream(imgfile, FileMode.Open);
+
+
+
+                byte[] iblob = new byte[imgfs.Length];
+                imgfs.Read(iblob, 0, iblob.Length);
+                imgfs.Close();
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {                 
+                    new SQLiteParameter("@IBLOB", DbType.Binary, iblob.Length, ParameterDirection.Input, false, 0, 0, null, DataRowVersion.Current, iblob),
+                    new SQLiteParameter("@ITYPE", itype),
+                    new SQLiteParameter("@ITWID", itwid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 获取指定用户数据
+        /// </summary> 
+        /// <param name="uid">需要获取的用户UID</param> 
+        /// <param name="udata">返回用户数据结构</param> 
+
+        public bool GetUserData_R(int uid, ref UserData udata)
+        {
+            try
+            {
+                string sql = "SELECT ID, UNICK, UCONTACT FROM USERRTB WHERE ID = @ID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@ID", uid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到指定用户!");
+
+                        while (reader.Read())
+                        {
+                            udata.id = reader.GetInt32(0);
+                            udata.nick = reader.GetString(1);
+                            if (!reader.IsDBNull(2))
+                                udata.qq = reader.GetString(2);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                udata = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 获取指定反馈人数据
+        /// </summary> 
+        /// <param name="uid">需要获取的用户UID</param> 
+        /// <param name="udata">返回用户数据结构</param> 
+
+        public bool GetUserData_F(int uid, ref UserData udata)
+        {
+            try
+            {
+                string sql = "SELECT ID, UNICK, UCONTACT FROM USERFTB WHERE ID = @ID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@ID", uid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到指定用户!");
+
+                        while (reader.Read())
+                        {
+                            udata.id = reader.GetInt32(0);
+                            udata.nick = reader.GetString(1);
+                            if (!reader.IsDBNull(2))
+                                udata.qq = reader.GetString(2);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                udata = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 获取所有用户数据
+        /// </summary> 
+        /// <param name="udatal">返回用户数据结构列表</param> 
+        public bool GetUserDataL_R(ref List<UserData> udatal)
+        {
+            try
+            {
+                string sql = "SELECT ID, UNICK, UCONTACT FROM USERRTB";
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, null))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到用户!");
+
+                        while (reader.Read())
+                        {
+
+                            UserData udata = new UserData();
+                            udata.id = reader.GetInt32(0);
+                            udata.nick = reader.GetString(1);
+                            if (!reader.IsDBNull(2))
+                                udata.qq = reader.GetString(2);
+                            udatal.Add(udata);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                udatal = null;
+                this._lasterr = ex.Message;
+                return false;
+
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 获取所有反馈人数据
+        /// </summary> 
+        /// <param name="udatal">返回用户数据结构列表</param> 
+        public bool GetUserDataL_F(ref List<UserData> udatal)
+        {
+            try
+            {
+                string sql = "SELECT ID, UNICK, UCONTACT FROM USERFTB";
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, null))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到用户!");
+
+                        while (reader.Read())
+                        {
+
+                            UserData udata = new UserData();
+                            udata.id = reader.GetInt32(0);
+                            udata.nick = reader.GetString(1);
+                            if (!reader.IsDBNull(2))
+                                udata.qq = reader.GetString(2);
+                            udatal.Add(udata);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                udatal = null;
+                this._lasterr = ex.Message;
+                return false;
+
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 获取指定用户当前工作数量
+        /// </summary> 
+        /// <param name="wuid">用户UID</param> 
+        /// <param name="wuid">返回当前用户的工作数量</param> 
+        public bool GetUserWorkCount(int wuid, out int workcount)
+        {
+            workcount = -1;
+            try
+            {
+                string sql = "SELECT COUNT(1) FROM WORKTB WHERE WSTATUS = 0 AND WUID = @WUID";
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    SQLiteParameter[] parameters = new SQLiteParameter[]
+                    {
+                        new SQLiteParameter("@WUID", wuid)
+                    };
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到指定工作!");
+
+                        while (reader.Read())
+                        {
+                            workcount = reader.GetInt32(0);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 获取指定任务数据
+        /// </summary> 
+        /// <param name="tid">需要获取的任务TID</param> 
+        /// <param name="tdata">返回任务数据结构</param> 
+        public bool GetTaskData(int tid, ref TaskData tdata)
+        {
+            try
+            {
+                string sql = "SELECT ID, TTYPE, TSTATUS, WID, RUID, TNAME, TFUID, TCONTEXT, TENV, TRTIME, TFTIME FROM TASKTB WHERE ID = @ID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@ID", tid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到指定任务!");
+
+                        while (reader.Read())
+                        {
+                            tdata.id = reader.GetInt32(0);
+                            tdata.type = reader.GetInt32(1);
+                            tdata.status = reader.GetInt32(2);
+                            tdata.wid = reader.GetInt32(3);
+                            tdata.uid = reader.GetInt32(4);
+                            tdata.uname = reader.GetString(5);
+                            tdata.fuid = reader.GetInt32(6);
+
+                            if (!reader.IsDBNull(7))
+                                tdata.context = reader.GetString(7);
+
+                            if (!reader.IsDBNull(8))
+                                tdata.env = reader.GetString(8);
+
+                            tdata.atime = reader.GetDateTime(9);
+
+                            if (!reader.IsDBNull(10))
+                                tdata.ftime = reader.GetDateTime(10);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                tdata = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 获取所有未归档任务数据
+        /// </summary> 
+        /// <param name="tdatal">返回任务数据结构列表</param> 
+        public bool GetTaskDataL(ref List<TaskData> tdatal)
+        {
+            try
+            {
+                string sql = "SELECT ID, TTYPE, TSTATUS, WID, RUID, TNAME, TFUID, TCONTEXT, TENV, TRTIME, TFTIME FROM TASKTB WHERE TSTATUS = 0";
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, null))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到任务!");
+
+                        while (reader.Read())
+                        {
+                            TaskData tdata = new TaskData();
+                            tdata.id = reader.GetInt32(0);
+                            tdata.type = reader.GetInt32(1);
+                            tdata.status = reader.GetInt32(2);
+                            tdata.wid = reader.GetInt32(3);
+                            tdata.uid = reader.GetInt32(4);
+                            tdata.uname = reader.GetString(5);
+                            tdata.fuid = reader.GetInt32(6);
+
+                            if (!reader.IsDBNull(7))
+                                tdata.context = reader.GetString(7);
+
+                            if (!reader.IsDBNull(8))
+                                tdata.env = reader.GetString(8);
+
+                            tdata.atime = reader.GetDateTime(9);
+
+                            if (!reader.IsDBNull(10))
+                                tdata.atime = reader.GetDateTime(10);
+
+                            tdatal.Add(tdata);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                tdatal = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 获取指定日期指定状态任务数据列表
+        /// </summary> 
+        /// <param name="tstatus">任务状态</param> 
+        /// <param name="tstart">任务开始日期</param> 
+        /// <param name="tend">任务结束日期</param> 
+        /// <param name="tdatal">返回任务数据结构列表</param> 
+        public bool GetTaskDataDL(int tstatus, DateTime tstart, DateTime tend, ref List<TaskData> tdatal)
+        {
+            try
+            {
+                string sql = "SELECT ID, TTYPE, TSTATUS, WID, RUID, TNAME, TFUID, TCONTEXT, TENV, TRTIME, TFTIME FROM TASKTB WHERE TSTATUS = @TSTATUS AND TRTIME BETWEEN @TSTART AND @TEND";
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@TSTATUS", tstatus),
+                    new SQLiteParameter("@TSTART",  tstart),
+                    new SQLiteParameter("@TEND", tend)
+                };
+
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到任务!");
+
+                        while (reader.Read())
+                        {
+                            TaskData tdata = new TaskData();
+                            tdata.id = reader.GetInt32(0);
+                            tdata.type = reader.GetInt32(1);
+                            tdata.status = reader.GetInt32(2);
+                            tdata.wid = reader.GetInt32(3);
+                            tdata.uid = reader.GetInt32(4);
+                            tdata.uname = reader.GetString(5);
+                            tdata.fuid = reader.GetInt32(6);
+
+                            if (!reader.IsDBNull(7))
+                                tdata.context = reader.GetString(7);
+
+                            if (!reader.IsDBNull(8))
+                                tdata.env = reader.GetString(8);
+
+                            tdata.atime = reader.GetDateTime(9);
+
+                            if (!reader.IsDBNull(10))
+                                tdata.ftime = reader.GetDateTime(10);
+
+                            tdatal.Add(tdata);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                tdatal = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+
+
+
+
+        /// <summary> 
+        /// 获取指定任务分类名称
+        /// </summary> 
+        /// <param name="ttid">任务分类TTID</param> 
+        /// <param name="ttext">返回任务分类数据</param>
+        public bool GetTaskTypeData(int ttid, ref TaskTypeData ttdata)
+        {
+            try
+            {
+                string sql = "SELECT ID, TTEXT, TTIME FROM TASKTYPETB WHERE ID = @ID";
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@ID", ttid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到指定任务分类!");
+
+                        while (reader.Read())
+                        {
+                            ttdata.id = reader.GetInt32(0);
+                            ttdata.text = reader.GetString(1);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                ttdata = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 获取所有任务分类数据
+        /// </summary> 
+        /// <param name="ttdatal">返回任务分类数据结构</param> 
+        public bool GetTaskTypeDataL(ref List<TaskTypeData> ttdatal)
+        {
+            try
+            {
+                string sql = "SELECT ID, TTEXT, TTIME FROM TASKTYPETB";
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, null))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到任务分类!");
+
+                        while (reader.Read())
+                        {
+                            TaskTypeData ttdata = new TaskTypeData();
+                            ttdata.id = reader.GetInt32(0);
+                            ttdata.text = reader.GetString(1);
+                            ttdatal.Add(ttdata);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                ttdatal = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+
+        /// <summary> 
+        /// 获取指定工作数据
+        /// </summary> 
+        /// <param name="wid">需要获取的工作WID</param> 
+        /// <param name="wdata">返回工作数据结构</param> 
+        public bool GetWorkData(int wid, ref WorkData wdata)
+        {
+            try
+            {
+                string sql = "SELECT ID, WSTATUS, WTID, WUID, WCAUSE, WCONTEXT, WSTIME, WETIME FROM WORKTB WHERE ID = @ID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@ID", wid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到指定工作!");
+
+                        while (reader.Read())
+                        {
+                            wdata.id = reader.GetInt32(0);
+                            wdata.status = reader.GetInt32(1);
+                            wdata.tid = reader.GetInt32(2);
+                            wdata.uid = reader.GetInt32(3);
+
+                            if (!reader.IsDBNull(4))
+                                wdata.cause = reader.GetString(4);
+
+                            if (!reader.IsDBNull(5))
+                                wdata.context = reader.GetString(5);
+
+                            wdata.stime = reader.GetDateTime(6);
+
+                            if (!reader.IsDBNull(7))
+                                wdata.etime = reader.GetDateTime(7);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                wdata = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 获取指定状态工作记录列表
+        /// </summary> 
+        /// <param name="wstatus">工作状态 0=正常 1=未解决 2=已解决</param> 
+        /// <param name="wdatal">返回工作数据结构数组</param> 
+        public bool GetWorkDataL(int wstatus, ref List<WorkData> wdatal)
+        {
+            try
+            {
+                string sql = "SELECT ID, WSTATUS, WTID, WUID, WCAUSE, WCONTEXT, WSTIME, WETIME FROM WORKTB WHERE WSTATUS = @WSTATUS";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@WSTATUS", wstatus)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到工作记录!");
+
+                        while (reader.Read())
+                        {
+                            WorkData wdata = new WorkData();
+                            wdata.id = reader.GetInt32(0);
+                            wdata.status = reader.GetInt32(1);
+                            wdata.tid = reader.GetInt32(2);
+                            wdata.uid = reader.GetInt32(3);
+
+                            if (!reader.IsDBNull(4))
+                                wdata.cause = reader.GetString(4);
+
+                            if (!reader.IsDBNull(5))
+                                wdata.context = reader.GetString(5);
+
+                            wdata.stime = reader.GetDateTime(6);
+
+                            if (!reader.IsDBNull(7))
+                                wdata.etime = reader.GetDateTime(7);
+
+                            wdatal.Add(wdata);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                wdatal = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 获取指定任务工作记录列表
+        /// </summary> 
+        /// <param name="tid">任务TID</param> 
+        /// <param name="wdatal">返回工作数据结构数组</param> 
+        public bool GetTaskWorkDataL(int tid, ref List<WorkData> wdatal)
+        {
+            try
+            {
+                string sql = "SELECT ID, WSTATUS, WTID, WUID, WCAUSE, WCONTEXT, WSTIME, WETIME FROM WORKTB WHERE WTID = @WTID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@WTID", tid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到工作记录!");
+
+                        while (reader.Read())
+                        {
+                            WorkData wdata = new WorkData();
+                            wdata.id = reader.GetInt32(0);
+                            wdata.status = reader.GetInt32(1);
+                            wdata.tid = reader.GetInt32(2);
+                            wdata.uid = reader.GetInt32(3);
+
+                            if (!reader.IsDBNull(4))
+                                wdata.cause = reader.GetString(4);
+
+                            if (!reader.IsDBNull(5))
+                                wdata.context = reader.GetString(5);
+
+                            wdata.stime = reader.GetDateTime(6);
+
+                            if (!reader.IsDBNull(7))
+                                wdata.etime = reader.GetDateTime(7);
+
+                            wdatal.Add(wdata);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                wdatal = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+
+
+
+
+        /// <summary> 
+        /// 获取指定任务图片数据
+        /// </summary> 
+        /// <param name="itwid">需要获取的图片IID</param> 
+        /// <param name="idata">返回图片数据结构</param> 
+        public bool GetImgData(int itype, int itwid, out ImgData idata)
+        {
+            try
+            {
+                string sql = "SELECT ID, ITYPE, ITWID, IUID, ITIME, IBLOB FROM IMGTB WHERE ITYPE = @ITYPE AND ITWID = @ITWID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {    
+                    new SQLiteParameter("@ITYPE", itype),
+                    new SQLiteParameter("@ITWID", itwid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到图片!");
+
+                        while (reader.Read())
+                        {
+                            long filesize = reader.GetBytes(5, 0, null, 0, 0);
+                            idata = new ImgData(filesize);
+                            idata.iid = reader.GetInt32(0);
+                            idata.itype = reader.GetInt32(1);
+                            idata.itwid = reader.GetInt32(2);
+                            idata.iuid = reader.GetInt32(3);
+                            idata.itime = reader.GetDateTime(4);
+                            byte[] buffer = new byte[filesize];
+                            reader.GetBytes(5, 0, buffer, 0, buffer.Length);
+                            idata.iblob = buffer;
+                            return true;
+                        }
+                    }
+                }
+
+                idata = null;
+                return false;
+
+            }
+            catch (Exception ex)
+            {
+                idata = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 获取指定日志数据
+        /// </summary> 
+        /// <param name="lid">需要获取的日志LID</param> 
+        /// <param name="ldata">返回日志数据结构</param> 
+
+        public bool GetLogData(int lid, ref LogData ldata)
+        {
+            try
+            {
+                string sql = "SELECT ID, LTYPE, LCONTEXT, LTIME FROM LOGTB WHERE ID = @ID";
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                {
+                    new SQLiteParameter("@ID", lid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+
+                    using (SQLiteDataReader reader = db.ExecuteReader(sql, parameters))
+                    {
+                        if (!reader.HasRows)
+                            throw new Exception("未找到指定日志!");
+
+                        while (reader.Read())
+                        {
+                            ldata.lid = reader.GetInt32(0);
+                            ldata.ltype = reader.GetInt32(1);
+                            ldata.lcontext = reader.GetString(2);
+                            ldata.ltime = reader.GetDateTime(3);
+                        }
+
+                    }
+                }
+
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                ldata = null;
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+        /// <summary> 
+        /// 移除指定任务图片
+        /// </summary> 
+        /// <param name="tid">任务TID</param> 
+        public bool RemoveTaskImg(int tid)
+        {
+            try
+            {
+
+                string sql = "DELETE FROM IMGTB WHERE ITYPE = 0 AND ITWID = @ITWID";
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                { 
+                    new SQLiteParameter("@ITWID", tid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 移除指定任务工作记录
+        /// </summary> 
+        /// <param name="tid">任务tid</param> 
+        public bool RemoveTaskWork(int tid)
+        {
+            try
+            {
+
+                string sql = "DELETE FROM WORKTB WHERE WTID = @WTID";
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                { 
+                    new SQLiteParameter("@WTID", tid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+        /// <summary> 
+        /// 移除指定任务
+        /// </summary> 
+        /// <param name="tid">任务TID</param> 
+        public bool RemoveTask(int tid)
+        {
+            try
+            {
+                if (!RemoveTaskWork(tid))
+                    return false;
+
+                if (!RemoveTaskImg(tid))
+                    return false;
+
+
+                string sql = "DELETE FROM TASKTB WHERE ID = @ID";
+
+                SQLiteParameter[] parameters = new SQLiteParameter[]
+                { 
+                    new SQLiteParameter("@ID", tid)
+                };
+
+                using (SQLiteHelper db = new SQLiteHelper(_dbfile))
+                {
+                    db.ExecuteNonQuery(sql, parameters);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this._lasterr = ex.Message;
+                return false;
+            }
+
+        }
+
+
+
+
+
+
+    }
+}

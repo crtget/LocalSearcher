@@ -1,0 +1,393 @@
+using System;
+using System.Text;
+using System.Drawing;
+using System.Collections;
+using System.ComponentModel;
+using System.IO;
+using System.Windows.Forms;
+using System.Data;
+using System.Xml;
+using System.Runtime.InteropServices;
+using System.Collections.Generic;
+
+namespace LocalSearcher
+{
+    public partial class ExplorerForm : Form
+    {
+        private DirectoryInfo folder; // 用于保存目录信息 
+        private DirectoryInfo CurrentDirInfo;
+        private static string driveLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        private System.Windows.Forms.MainMenu mainMenu1;
+        private System.Windows.Forms.MenuItem menuItem1;
+        private System.Windows.Forms.MenuItem menuItem2;
+        private IContainer components;     // 用于列举驱动器盘符 
+
+        private List<string> glist;
+        private List<string> blist;
+
+
+        public class ItemTag
+        {
+            public int type;
+            public string fullname;
+        }
+
+
+
+
+        public static uint SHGFI_ICON = 0x100;
+        public static uint SHGFI_DISPLAYNAME = 0x200;
+        public static uint SHGFI_TYPENAME = 0x400;
+        public static uint SHGFI_ATTRIBUTES = 0x800;
+        public static uint SHGFI_ICONLOCATION = 0x1000;
+        public static uint SHGFI_EXETYPE = 0x2000;
+        public static uint SHGFI_SYSICONINDEX = 0x4000;
+        public static uint SHGFI_LINKOVERLAY = 0x8000;
+        public static uint SHGFI_SELECTED = 0x10000;
+        public static uint SHGFI_LARGEICON = 0x0;
+        public static uint SHGFI_SMALLICON = 0x1;
+        public static uint SHGFI_OPENICON = 0x2;
+        public static uint SHGFI_SHELLICONSIZE = 0x4;
+        public static uint SHGFI_PIDL = 0x8;
+        public static uint SHGFI_USEFILEATTRIBUTES = 0x10;
+        public static uint FILE_ATTRIBUTE_NORMAL = 0x80;
+        public static uint LVM_FIRST = 0x1000;
+        public static uint LVM_SETIMAGELIST = LVM_FIRST + 3;
+        public static uint LVSIL_NORMAL = 0;
+        public static uint LVSIL_SMALL = 1;
+
+        [DllImport("Shell32.dll")]
+        public static extern IntPtr SHGetFileInfo(string pszPath,
+            uint dwFileAttributes, ref SHFILEINFO psfi,
+            int cbfileInfo, uint uFlags);
+        public struct SHFILEINFO
+        {
+            public IntPtr hIcon;
+            public int iIcon;
+            public int dwAttributes;
+            public string szDisplayName;
+            public string szTypeName;
+        }
+        [DllImport("User32.DLL")]
+        public static extern int SendMessage(IntPtr hWnd,
+            uint Msg, IntPtr wParam, IntPtr lParam);
+        public void ListViewSysImages(ListView AListView)
+        {
+            SHFILEINFO vFileInfo = new SHFILEINFO();
+            IntPtr vImageList = SHGetFileInfo("", 0, ref vFileInfo,
+                Marshal.SizeOf(vFileInfo), SHGFI_SHELLICONSIZE |
+                SHGFI_SYSICONINDEX | SHGFI_LARGEICON);
+            SendMessage(AListView.Handle, LVM_SETIMAGELIST, (IntPtr)LVSIL_NORMAL,
+                vImageList);
+            vImageList = SHGetFileInfo("", 0, ref vFileInfo,
+                Marshal.SizeOf(vFileInfo), SHGFI_SHELLICONSIZE |
+                SHGFI_SYSICONINDEX | SHGFI_SMALLICON);
+            SendMessage(AListView.Handle, LVM_SETIMAGELIST, (IntPtr)LVSIL_SMALL,
+                 vImageList);
+        }
+        public int FileIconIndex(string AFileName)
+        {
+            SHFILEINFO vFileInfo = new SHFILEINFO();
+            SHGetFileInfo(AFileName, 0, ref vFileInfo,
+                Marshal.SizeOf(vFileInfo), SHGFI_SYSICONINDEX);
+            return vFileInfo.iIcon;
+        }
+
+
+        public ExplorerForm()
+        {
+            //
+            // Windows 窗体设计器支持所必需的
+            //
+            InitializeComponent();
+            //fillTree(this.treeView1);
+            blist = new List<string>();
+            glist = new List<string>();
+            ListViewSysImages(lvfile);
+            tbxpath.Text = @"C:\";
+            CurrentDirInfo = new DirectoryInfo(@"C:\");
+            fillListView(this.lvfile, @"C:\", true);
+    
+            
+            //
+            // TODO: 在 InitializeComponent 调用后添加任何构造函数代码
+            //
+        }
+
+        /// <summary>
+        /// 清理所有正在使用的资源。
+        /// </summary>
+
+
+
+
+
+
+
+        private void fillTree(TreeView tv)
+        {
+            DirectoryInfo directory;
+            string sCurPath = "";
+            tv.Nodes.Clear();
+
+
+            foreach (char c in driveLetters)
+            {
+                sCurPath = c + ":\\";
+                try
+                {
+                    directory = new DirectoryInfo(sCurPath);
+
+                    if (directory.Exists == true)
+                    {
+                        TreeNode newNode = new TreeNode(directory.FullName);
+                        tv.Nodes.Add(newNode);
+                        getSubDirs(newNode);
+                    }
+                }
+                catch (Exception doh)
+                {
+                    Console.WriteLine(doh.Message);
+                }
+            }
+        }
+
+        private void getSubDirs(TreeNode parent)
+        {
+            DirectoryInfo directory;
+            try
+            {
+                if (parent.Nodes.Count == 0)
+                {
+                    directory = new DirectoryInfo(parent.FullPath);
+                    foreach (DirectoryInfo dir in directory.GetDirectories())
+                    {
+                        TreeNode newNode = new TreeNode(dir.Name);
+                        parent.Nodes.Add(newNode);
+                    }
+                }
+
+                foreach (TreeNode node in parent.Nodes)
+                {
+                    if (node.Nodes.Count == 0)
+                    {
+                        directory = new DirectoryInfo(node.FullPath);
+
+                        foreach (DirectoryInfo dir in directory.GetDirectories())
+                        {
+                            TreeNode newNode = new TreeNode(dir.Name);
+                            node.Nodes.Add(newNode);
+                        }
+                    }
+                }
+            }
+            catch (Exception doh)
+            {
+                Console.WriteLine(doh.Message);
+            }
+        }
+
+        private void fillListView(ListView lv, string strPath, bool isback = false)
+        {
+
+            if (!isback)
+                blist.Add(CurrentDirInfo.FullName);
+
+            if (blist.Count > 0)
+                btnback.Enabled = true;
+            else
+                btnback.Enabled = false;
+
+            if (glist.Count > 0)
+                btngo.Enabled = true;
+            else
+                btngo.Enabled = false;
+
+
+            
+            DirectoryInfo directory = new DirectoryInfo(strPath);
+            CurrentDirInfo = directory;
+            
+            lv.Items.Clear();
+
+            foreach (DirectoryInfo dir in directory.GetDirectories())
+            {
+                ListViewItem item = new ListViewItem(dir.Name);
+                ItemTag tag = new ItemTag();
+                tag.type = 0;
+                tag.fullname = dir.FullName;
+                item.Tag = tag;
+                item.ImageIndex = FileIconIndex(dir.FullName);
+                lv.Items.Add(item);
+            }
+
+            foreach (FileInfo file in directory.GetFiles())
+            {
+                ListViewItem item = new ListViewItem(file.Name);
+                item.SubItems.Add((file.Length / 1024).ToString() + " KB");
+                ItemTag tag = new ItemTag();
+                tag.type = 1;
+                tag.fullname = file.FullName;
+                item.Tag = tag;
+                item.ImageIndex = FileIconIndex(file.FullName);
+                item.SubItems.Add(file.LastWriteTime.ToString());
+                lv.Items.Add(item);
+            }
+        }
+
+        private string FixPath(TreeNode node)
+        {
+            string sRet = "";
+            try
+            {
+                sRet = node.FullPath;
+                int index = sRet.IndexOf("\\\\");
+                if (index > 1)
+                {
+                    sRet = node.FullPath.Remove(index, 1);
+                }
+            }
+            catch (Exception doh)
+            {
+                Console.WriteLine(doh.Message);
+            }
+            return sRet;
+        }
+
+
+        private string FixPath(ref string path)
+        {
+            if (path[path.Length - 1] != '\\')
+            {
+                path += "\\";
+                return path;
+            }
+            else
+                return path;
+
+        }
+
+        private void treeView1_BeforeSelect(object sender, System.Windows.Forms.TreeViewCancelEventArgs e)
+        {
+            try
+            {
+                getSubDirs(e.Node); // 取得选择节点的子文件夹 
+                tbxpath.Text = FixPath(e.Node); // 更新文本框内容 
+                folder = new DirectoryInfo(e.Node.FullPath); // 获得它的目录信息
+                fillListView(lvfile, FixPath(e.Node));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+
+        }
+
+        private void treeView1_BeforeExpand(object sender, System.Windows.Forms.TreeViewCancelEventArgs e)
+        {
+            try
+            {
+                getSubDirs(e.Node); // 取得选择节点的子文件夹 
+                tbxpath.Text = FixPath(e.Node); // 更新文本框内容 
+                folder = new DirectoryInfo(e.Node.FullPath); // 获得它的目录信息 
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+
+        }
+
+
+
+        private void ExplorerForm_Resize(object sender, EventArgs e)
+        {
+            
+            ExplorerForm ef = sender as ExplorerForm;
+            paneladdr.Width = ef.Width - 100;
+            panelfv.Width = ef.Width - 100;
+            panelfv.Height = ef.Height - 110;
+            paneltv.Height = ef.Height - 110;
+            
+
+        }
+
+        private void lvfile_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            if (lvfile.SelectedIndices.Count == 0)
+                return;
+
+            try
+            {
+                ItemTag tag = (ItemTag)lvfile.SelectedItems[0].Tag;
+
+                if (tag.type == 0)
+                {
+                    if (tbxpath.Text != "" && tbxpath.Text[tbxpath.Text.Length - 1] == '\\')
+                        tbxpath.Text += lvfile.SelectedItems[0].Text;
+                    else
+                        tbxpath.Text += @"\" + lvfile.SelectedItems[0].Text;
+
+
+                    fillListView(lvfile, tbxpath.Text);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+
+        }
+
+        private void tbxpath_KeyPress(object sender, KeyPressEventArgs e)
+        {
+
+            if (e.KeyChar == 13)
+            {
+                DirectoryInfo dif = new DirectoryInfo(tbxpath.Text);
+
+                if (dif.Exists)
+                    fillListView(this.lvfile, tbxpath.Text);
+                else
+                {
+                    MessageBox.Show("找不到路径");
+                    lvfile.Clear();
+                }
+                    
+ 
+            }
+
+
+        }
+
+        private void btnback_Click(object sender, EventArgs e)
+        {
+
+            if (blist.Count > 0)
+            {
+                glist.Add(tbxpath.Text);
+                string tpath = blist[blist.Count - 1];
+                blist.RemoveAt(blist.Count - 1);
+                tbxpath.Text = tpath;
+                fillListView(lvfile, tpath, true);
+                
+            }
+
+        }
+
+        private void btngo_Click(object sender, EventArgs e)
+        {
+            if (glist.Count > 0)
+            {
+                string tpath = glist[glist.Count - 1];
+                glist.RemoveAt(glist.Count - 1);
+                tbxpath.Text = tpath;
+                fillListView(lvfile, tpath);
+            }
+        }
+
+
+
+    }
+}

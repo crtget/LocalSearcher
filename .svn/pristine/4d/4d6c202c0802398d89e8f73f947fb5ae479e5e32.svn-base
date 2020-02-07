@@ -1,0 +1,97 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using System.IO;
+using System.Collections;
+using System.Threading;
+
+namespace LocalSearcher
+{
+    public partial class MainForm : Form
+    {
+        private SearchFile _sf;
+        private DBModel _dbm;
+        private List<FileInfo> _searchcache;
+
+        public MainForm()
+        {
+            InitializeComponent();
+            FileSystemWatcher FSW = new FileSystemWatcher();
+            FSW.Path = @"C:\";
+            FSW.IncludeSubdirectories = true;
+            FSW.Changed += new FileSystemEventHandler(this.FileChanged);
+            FSW.Created += new FileSystemEventHandler(this.FileCreated);
+            FSW.Deleted += new FileSystemEventHandler(this.FileDeleted);
+            //FSW.EnableRaisingEvents = true;    
+            _dbm = new DBModel();
+            _searchcache = new List<FileInfo>();
+        }
+
+        private void FileChanged(object sender, System.IO.FileSystemEventArgs e)
+        {
+            this.Invoke(new MethodInvoker(() =>
+            {
+                tbxmsg.AppendText(e.FullPath + " " + e.ChangeType + "\r\n");
+            }));
+        }
+
+        private void FileDeleted(object sender, System.IO.FileSystemEventArgs e)
+        {
+            this.Invoke(new MethodInvoker(() =>
+            {
+                tbxmsg.AppendText(e.FullPath + " " + e.ChangeType + "\r\n");
+            }));
+        }
+
+        private void FileCreated(object sender, System.IO.FileSystemEventArgs e)
+        {
+            this.Invoke(new MethodInvoker(() =>
+            {
+                tbxmsg.AppendText(e.FullPath + " " + e.ChangeType + "\r\n");
+            }));
+        }
+        private void button1_Click(object sender, EventArgs e)
+        {
+            _sf = new SearchFile();
+            _searchcache.Clear();
+            _sf.OnFindFile += this.OnFindFile;
+            _sf.SearchPathFile(@"c:\");
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            _dbm.AddShootFiles(this._searchcache);
+            return;
+
+            if (_sf.searching)
+            {
+                _sf.abort = true;
+
+            }
+        }
+
+
+
+
+        private void OnFindFile(FileInfo finfo)
+        {
+            this.Invoke(new MethodInvoker(() =>
+            {
+                tbxmsg.AppendText(finfo.FullName + "\r\n");
+               
+            }));
+
+            _searchcache.Add(finfo);
+
+        }
+
+
+
+
+    }
+}

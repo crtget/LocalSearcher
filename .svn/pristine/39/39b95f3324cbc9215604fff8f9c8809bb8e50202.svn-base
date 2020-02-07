@@ -1,0 +1,57 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using System.IO;
+
+namespace LocalSearcher
+{
+    public partial class MainForm : Form
+    {
+        public MainForm()
+        {
+            InitializeComponent();
+            FileSystemWatcher FSW = new FileSystemWatcher();
+            FSW.Path = @"C:\";
+            FSW.IncludeSubdirectories = true;
+            FSW.Changed += new FileSystemEventHandler(this.FileChanged);
+            FSW.Created += new FileSystemEventHandler(this.FileCreated);
+            FSW.Deleted += new FileSystemEventHandler(this.FileDeleted);
+            FSW.EnableRaisingEvents = true;       
+        }
+
+        private void FileChanged(object sender, System.IO.FileSystemEventArgs e)
+        {
+            this.Invoke(new MethodInvoker(() =>
+            {
+                tbxmsg.AppendText(e.FullPath + " " + e.ChangeType + "\r\n");
+            }));
+        }
+
+        private void FileDeleted(object sender, System.IO.FileSystemEventArgs e)
+        {
+            this.Invoke(new MethodInvoker(() =>
+            {
+                tbxmsg.AppendText(e.FullPath + " " + e.ChangeType + "\r\n");
+            }));
+        }
+
+        private void FileCreated(object sender, System.IO.FileSystemEventArgs e)
+        {
+            this.Invoke(new MethodInvoker(() =>
+            {
+                tbxmsg.AppendText(e.FullPath + " " + e.ChangeType + "\r\n");
+            }));
+        }
+        private void button1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+
+    }
+}

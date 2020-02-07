@@ -1,0 +1,157 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.IO;
+using System.Security.Permissions;
+using System.Threading;
+
+
+namespace LocalSearcher
+{
+    class SearchFile
+    {
+        [Serializable]
+        public class MyFileInfo
+        {
+            public FileInfo FileInfo;
+
+            public MyFileInfo(FileInfo finfo)
+            {
+                this.FileInfo = finfo;
+            }
+
+        }
+
+
+        [Serializable, System.Runtime.InteropServices.StructLayout
+      (System.Runtime.InteropServices.LayoutKind.Sequential,
+      CharSet = System.Runtime.InteropServices.CharSet.Auto
+      ),
+    System.Runtime.InteropServices.BestFitMapping(false)]
+        private struct WIN32_FIND_DATA
+        {
+            public int dwFileAttributes;
+            public int ftCreationTime_dwLowDateTime;
+            public int ftCreationTime_dwHighDateTime;
+            public int ftLastAccessTime_dwLowDateTime;
+            public int ftLastAccessTime_dwHighDateTime;
+            public int ftLastWriteTime_dwLowDateTime;
+            public int ftLastWriteTime_dwHighDateTime;
+            public int nFileSizeHigh;
+            public int nFileSizeLow;
+            public int dwReserved0;
+            public int dwReserved1;
+            [System.Runtime.InteropServices.MarshalAs
+              (System.Runtime.InteropServices.UnmanagedType.ByValTStr,
+              SizeConst = 260)]
+            public string cFileName;
+            [System.Runtime.InteropServices.MarshalAs
+              (System.Runtime.InteropServices.UnmanagedType.ByValTStr,
+              SizeConst = 14)]
+            public string cAlternateFileName;
+        }
+        [System.Runtime.InteropServices.DllImport
+          ("kernel32.dll",
+          CharSet = System.Runtime.InteropServices.CharSet.Auto,
+          SetLastError = true)]
+        private static extern IntPtr FindFirstFile(string pFileName, ref WIN32_FIND_DATA pFindFileData);
+        [System.Runtime.InteropServices.DllImport
+          ("kernel32.dll",
+          CharSet = System.Runtime.InteropServices.CharSet.Auto,
+          SetLastError = true)]
+        private static extern bool FindNextFile(IntPtr hndFindFile, ref WIN32_FIND_DATA lpFindFileData);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FindClose(IntPtr hndFindFile);
+
+        Stack<string> m_scopes = new Stack<string>();
+        private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+        WIN32_FIND_DATA FindFileData;
+        private System.IntPtr hFind = INVALID_HANDLE_VALUE;
+
+
+        public delegate void FindFileHandler(FileInfo fileinfo);
+
+        public event FindFileHandler OnFindFile;
+
+        public void FindFileEvent(FileInfo fileinfo)
+        {
+            if (this.OnFindFile != null)
+                this.OnFindFile(fileinfo);
+        }
+
+        public bool searching = false;
+        public bool abort = false;
+
+
+
+        private void FindFileInDir(object o)
+        {
+            string rootDir = (string)o;
+            string path = rootDir;
+        start:
+            new FileIOPermission(FileIOPermissionAccess.PathDiscovery, Path.Combine(path, ".")).Demand();
+            if (path[path.Length - 1] != '\\')
+            {
+                path = path + "\\";
+            }
+
+
+            hFind = FindFirstFile(Path.Combine(path, "*"), ref FindFileData);
+
+            if (hFind != INVALID_HANDLE_VALUE)
+            {
+                do
+                {
+                    if (this.abort)
+                    {
+                        searching = false;
+                        break;
+                    }
+
+                    searching = true;
+                    
+                    if (FindFileData.cFileName.Equals(@".") || FindFileData.cFileName.Equals(@".."))
+                        continue;
+
+                    if ((FindFileData.dwFileAttributes & 0x10) != 0)
+                    {
+                        m_scopes.Push(Path.Combine(path, FindFileData.cFileName));
+                    }
+                    else
+                    {
+                        FileInfo finfo = new FileInfo(path + FindFileData.cFileName);
+                        this.FindFileEvent(finfo);
+                    }
+                }
+                while (FindNextFile(hFind, ref FindFileData));
+            }
+
+            FindClose(hFind);
+
+            if (m_scopes.Count > 0)
+            {
+                path = m_scopes.Pop();
+                goto start;
+            }
+
+        }
+
+
+
+        public void SearchPathFile(string searchpath)
+        {
+            string param = searchpath;
+            Thread st = new Thread(FindFileInDir);
+            st.Start(param);
+            searching = false;
+        }
+
+
+
+
+
+
+
+    }
+}
