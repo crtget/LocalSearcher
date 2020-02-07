@@ -200,6 +200,7 @@ namespace LocalSearcher
                 }
                 catch(Exception ex)
                 {
+
                     transaction.Rollback();
                     return 0;
                 }
