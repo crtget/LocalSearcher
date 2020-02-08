@@ -29,7 +29,7 @@ namespace LocalSearcher
             this.menuItem2 = new System.Windows.Forms.MenuItem();
             this.menuItem3 = new System.Windows.Forms.MenuItem();
             this.menuItem4 = new System.Windows.Forms.MenuItem();
-            this.btngo = new System.Windows.Forms.Button();
+            this.btnnext = new System.Windows.Forms.Button();
             this.btnback = new System.Windows.Forms.Button();
             this.tbxpath = new System.Windows.Forms.TextBox();
             this.panelbg = new System.Windows.Forms.Panel();
@@ -85,15 +85,16 @@ namespace LocalSearcher
             this.menuItem4.Text = "修复数据";
             this.menuItem4.Click += new System.EventHandler(this.menuItem4_Click);
             // 
-            // btngo
+            // btnnext
             // 
-            this.btngo.Enabled = false;
-            this.btngo.Location = new System.Drawing.Point(34, 3);
-            this.btngo.Name = "btngo";
-            this.btngo.Size = new System.Drawing.Size(30, 25);
-            this.btngo.TabIndex = 34;
-            this.btngo.Text = ">";
-            this.btngo.UseVisualStyleBackColor = true;
+            this.btnnext.Enabled = false;
+            this.btnnext.Location = new System.Drawing.Point(34, 3);
+            this.btnnext.Name = "btnnext";
+            this.btnnext.Size = new System.Drawing.Size(30, 25);
+            this.btnnext.TabIndex = 34;
+            this.btnnext.Text = ">";
+            this.btnnext.UseVisualStyleBackColor = true;
+            this.btnnext.Click += new System.EventHandler(this.btnnext_Click);
             // 
             // btnback
             // 
@@ -104,6 +105,7 @@ namespace LocalSearcher
             this.btnback.TabIndex = 33;
             this.btnback.Text = "<";
             this.btnback.UseVisualStyleBackColor = true;
+            this.btnback.Click += new System.EventHandler(this.btnback_Click);
             // 
             // tbxpath
             // 
@@ -116,7 +118,7 @@ namespace LocalSearcher
             // panelbg
             // 
             this.panelbg.Controls.Add(this.btnback);
-            this.panelbg.Controls.Add(this.btngo);
+            this.panelbg.Controls.Add(this.btnnext);
             this.panelbg.Location = new System.Drawing.Point(1, 1);
             this.panelbg.Name = "panelbg";
             this.panelbg.Size = new System.Drawing.Size(71, 33);
@@ -261,7 +263,7 @@ namespace LocalSearcher
 
         #endregion
         private IContainer components;
-        private Button btngo;
+        private Button btnnext;
         private Button btnback;
         private TextBox tbxpath;
         private Panel panelbg;

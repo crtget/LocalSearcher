@@ -30,7 +30,7 @@ namespace LocalSearcher
 {
     public partial class MainForm : Form
     {
-     
+
 
         public class Hparam
         {
@@ -43,7 +43,7 @@ namespace LocalSearcher
             public string respstr;
         }
 
-    
+
 
         public class Movie
         {
@@ -73,12 +73,6 @@ namespace LocalSearcher
         }
 
 
-        public class CoverData
-        {
-            public int id;
-            public int mid;
-            public MemoryStream cover;
-        }
 
 
         public class TagData
@@ -122,6 +116,8 @@ namespace LocalSearcher
         public static List<Movie> MovieList = new List<Movie>();
         public static List<FileAndDirectoryEntry> FileCache = new List<FileAndDirectoryEntry>();
         SynchronizationContext SyncContext = null;
+        public int CurrentPage = 0;
+
 
 
         public Task CacheDataTask, SaveDataTask, UpdateDataTask;
@@ -156,9 +152,9 @@ namespace LocalSearcher
         }
 
 
-        public void AddListItem(object o )
+        public void AddListItem(object o)
         {
-            this.lvFile.Items.Add(o as ListViewItem);
+            this.lvFile.Items.AddRange(o as ListViewItem[]);
         }
 
 
@@ -166,6 +162,31 @@ namespace LocalSearcher
         {
             var d = o as ImageData;
             this.imageList.Images.Add(d.name, d.img);
+        }
+
+
+        public void SetBackNext(object o)
+        {
+            var b = Convert.ToByte(o);
+
+            if ((b & BitConverter.GetBytes(1)[0]) > 0)
+            {
+                btnback.Enabled = true;
+            }
+            else
+            {
+                btnback.Enabled = false;
+            }
+
+            if ((b & BitConverter.GetBytes(2)[0]) > 0)
+            {
+                btnnext.Enabled = true;
+            }
+            else
+            {
+                btnnext.Enabled = false;
+            }
+
         }
 
 
@@ -180,7 +201,7 @@ namespace LocalSearcher
             hparam = new Hparam();
             hresp = new Hresp();
             lvFile.LargeImageList = imageList;
-            
+
         }
 
 
@@ -192,13 +213,11 @@ namespace LocalSearcher
 
 
 
-
-
             GetMoviesList(1, 1, "暂无");
 
 
-            
-            
+
+
 
             /*
             var r = GetMovieTags(4);
@@ -227,76 +246,98 @@ namespace LocalSearcher
         public void GetMoviesList(int mtype, int page, string word = null)
         {
 
+            lvFile.Items.Clear();
+            CurrentPage = page;
             MySqlParameter[] paramarr;
             string sql = "";
+            int total = 0;
+            byte bback = 1, bnext = 2;
+            var count = 0;
+            List<ListViewItem> LvList = new List<ListViewItem>();
 
-            if (mtype > 1)
+
+            Task ttask = new Task(() =>
             {
-                paramarr = new MySqlParameter[2];
-                paramarr[0] = new MySqlParameter("@page", (page - 1) * 100);
-                paramarr[1] = new MySqlParameter("@word", "%" + word + "%");
-                sql = "SELECT * FROM MOVIES WHERE TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD)) ORDER BY NAME LIMIT @PAGE, 100";
 
-            }
-            else
-            {
-                paramarr = new MySqlParameter[3];
-                paramarr[0] = new MySqlParameter("@type", mtype);
-                paramarr[1] = new MySqlParameter("@page", (page - 1) * 100);
-                paramarr[2] = new MySqlParameter("@word", "%" + word + "%");
-                sql = "SELECT * FROM MOVIES WHERE TYPE = @TYPE AND (TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD))) ORDER BY NAME LIMIT @PAGE, 100";
-
-            }
-
-
-            var reader = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
-
-
-            while(reader.Read())
-            {
-                int mid = reader.GetInt32(reader.GetOrdinal("id"));
-                int type = reader.GetInt32(reader.GetOrdinal("type"));
-                string code = reader.GetString(reader.GetOrdinal("code"));
-                string title = reader.GetString(reader.GetOrdinal("title"));
-                List<string> tags = new List<string>();
-
-                if (!reader.IsDBNull(reader.GetOrdinal("stars")))
-                    tags = reader.GetString(reader.GetOrdinal("tags")).Split('|').ToList();
-
-                List<string> stars = new List<string>();
-  
-                if (!reader.IsDBNull(reader.GetOrdinal("stars")))
-                    stars = reader.GetString(reader.GetOrdinal("stars")).Split('|').ToList();
-
-                string name = reader.GetString(reader.GetOrdinal("name"));
-                string fname = reader.GetString(reader.GetOrdinal("fname"));
-                var buffer = new byte[512000];
-                var length = reader.GetBytes(reader.GetOrdinal("cover"), 0, buffer, 0, buffer.Length);
-                MemoryStream cover = new MemoryStream(buffer);
-
-                if (length == 0)
+                if (mtype > 1)
                 {
-                    cover = new MemoryStream(Convert.FromBase64String(nopic));
+                    sql = "SELECT COUNT(*) FROM MOVIES WHERE TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD))";
+                    paramarr = new MySqlParameter[2];
+                    paramarr[0] = new MySqlParameter("@page", (page - 1) * 100);
+                    paramarr[1] = new MySqlParameter("@word", "%" + word + "%");
+                    total = Convert.ToInt32(MySqlHelper.ExecuteScalar(sql, CommandType.Text, paramarr));
+                    sql = "SELECT * FROM MOVIES WHERE TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD)) ORDER BY NAME LIMIT @PAGE, 100";
+                }
+                else
+                {
+                    sql = "SELECT COUNT(*) FROM MOVIES WHERE TYPE = @TYPE AND (TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD)))";
+                    paramarr = new MySqlParameter[3];
+                    paramarr[0] = new MySqlParameter("@type", mtype);
+                    paramarr[1] = new MySqlParameter("@page", (page - 1) * 100);
+                    paramarr[2] = new MySqlParameter("@word", "%" + word + "%");
+                    total = Convert.ToInt32(MySqlHelper.ExecuteScalar(sql, CommandType.Text, paramarr));
+                    sql = "SELECT * FROM MOVIES WHERE TYPE = @TYPE AND (TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD))) ORDER BY NAME LIMIT @PAGE, 100";
                 }
 
-                SyncContext.Send(AddImageList, new ImageData(name, Image.FromStream(cover)));
-                ListViewItem item = new ListViewItem(name);
-                item.ImageIndex = imageList.Images.IndexOfKey(name);
-                ListItemTag tag = new ListItemTag();
-                tag.id = mid;
-                tag.type = type;
-                tag.fullname = fname;
-                tag.title = title;
-                tag.tags = GetMovieTags(mid);
-                item.Tag = tag;
-                SyncContext.Send(AddListItem, item);
 
-                var m = new Movie(fname);
-                m.id = mid; m.type = type; m.code = code; m.title = title; m.tags = tags; m.stars = stars; m.name = name; m.fname = fname; m.cover = cover;
-                MovieList.Add(m);
-            }
+                var reader = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
+                SyncContext.Send(SetStatus, "正在查询数据...");
+                
 
-            reader.Close();
+                while (reader.Read())
+                {
+                    int mid = reader.GetInt32(reader.GetOrdinal("id"));
+                    int type = reader.GetInt32(reader.GetOrdinal("type"));
+                    string code = reader.GetString(reader.GetOrdinal("code"));
+                    string title = reader.GetString(reader.GetOrdinal("title"));
+                    var mtd = GetMovieTags(mid);
+                    var tags = mtd.Where(m => m.type == 0).Select(m => m.caption).ToList<string>();
+                    var stars = mtd.Where(m => m.type == 1).Select(m => m.caption).ToList<string>();
+                    string name = reader.GetString(reader.GetOrdinal("name"));
+                    string fname = reader.GetString(reader.GetOrdinal("fname"));
+                    var buffer = new byte[512000];
+                    var length = reader.GetBytes(reader.GetOrdinal("cover"), 0, buffer, 0, buffer.Length);
+                    MemoryStream cover = new MemoryStream(buffer);
+
+                    if (length == 0)
+                    {
+                        cover = new MemoryStream(Convert.FromBase64String(nopic));
+                    }
+
+                    SyncContext.Send(AddImageList, new ImageData(name, Image.FromStream(cover)));
+                    ListViewItem item = new ListViewItem(name);
+                    item.ImageIndex = imageList.Images.IndexOfKey(name);
+                    ListItemTag tag = new ListItemTag();
+                    tag.id = mid;
+                    tag.type = type;
+                    tag.fullname = fname;
+                    tag.title = title;
+                    tag.tags = GetMovieTags(mid);
+                    item.Tag = tag;
+                    LvList.Add(item);
+                    var md = new Movie(fname);
+                    md.id = mid; md.type = type; md.code = code; md.title = title; md.tags = tags; md.stars = stars; md.name = name; md.fname = fname; md.cover = cover;
+                    MovieList.Add(md);
+                    ++count;
+               
+                }
+
+                reader.Close();
+
+                if (page <= 1)
+                    bback = 0;
+
+                if (total <= (page * 100))
+                    bnext = 0;
+
+                SyncContext.Send(AddListItem, LvList.ToArray());
+                SyncContext.Send(SetBackNext, (bback | bnext));
+                SyncContext.Send(SetStatus, string.Format("共查询到{0}个对象", count));
+                
+
+            });
+
+            ttask.Start();
             //tbxpath.AutoCompleteCustomSource = GetTags();
             //tbxpath.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
             //tbxpath.AutoCompleteSource = AutoCompleteSource.CustomSource;
@@ -319,7 +360,7 @@ namespace LocalSearcher
                 string name = reader.GetString(reader.GetOrdinal("name"));
                 string fname = reader.GetString(reader.GetOrdinal("fname"));
 
-                
+
                 List<string> tags = new List<string>();
 
                 if (!reader.IsDBNull(reader.GetOrdinal("stars")))
@@ -333,15 +374,15 @@ namespace LocalSearcher
 
 
                 var m = new Movie(fname);
-                m.type = type; m.code = code; m.title = title; m.tags = tags; m.stars = stars; m.name = name; m.fname = fname; 
+                m.type = type; m.code = code; m.title = title; m.tags = tags; m.stars = stars; m.name = name; m.fname = fname;
                 MovieList.Add(m);
 
                 foreach (var t in m.tags)
                 {
                     int tid = CreateTag(0, t);
-                    var i =  CreateTagsMap(mid, tid);
+                    var i = CreateTagsMap(mid, tid);
 
-    
+
 
                 }
 
@@ -350,7 +391,7 @@ namespace LocalSearcher
                     int sid = CreateTag(1, s);
                     var i = CreateTagsMap(mid, sid);
 
-        
+
                 }
 
             }
@@ -360,19 +401,19 @@ namespace LocalSearcher
 
 
 
- 
+
 
         public TagData[] GetMovieTags(int mid)
         {
 
             string sql = "SELECT TAGS.TYPE, TAGS.NAME, TAGS.CAPTION FROM (TAGS LEFT JOIN TAGSMAP ON TAGS.ID = TAGSMAP.TID) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID WHERE MOVIES.ID = @ID";
-            MySqlParameter[] paramarr = { new MySqlParameter("@id", mid)};
+            MySqlParameter[] paramarr = { new MySqlParameter("@id", mid) };
             var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
             List<TagData> result = new List<TagData>();
-            
+
             while (r.Read())
             {
-               
+
                 TagData t = new TagData();
                 t.type = r.GetInt32(r.GetOrdinal("TYPE"));
                 t.name = r.GetString(r.GetOrdinal("NAME"));
@@ -388,13 +429,13 @@ namespace LocalSearcher
             string sql = "SELECT * FROM TAGS WHERE TYPE = @TYPE AND NAME = @NAME";
             int result = 0;
 
-            MySqlParameter[] paramarr = { new MySqlParameter("@type", type),new MySqlParameter("@name", tag) };
+            MySqlParameter[] paramarr = { new MySqlParameter("@type", type), new MySqlParameter("@name", tag) };
             var r = MySqlHelper.ExecuteScalar(sql, CommandType.Text, paramarr);
 
             if (r != null)
                 result = (Int32)r;
 
-            
+
             return result;
         }
 
@@ -446,8 +487,8 @@ namespace LocalSearcher
             var result = new AutoCompleteStringCollection();
             string sql = "SELECT CAPTION FROM TAGS";
             var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, null);
-            
-            while(r.Read())
+
+            while (r.Read())
             {
                 result.Add(r.GetString(r.GetOrdinal("CAPTION")));
             }
@@ -714,7 +755,7 @@ namespace LocalSearcher
         public static void SaveMovieData()
         {
 
-            lock(MovieList)
+            lock (MovieList)
             {
                 Hashtable hs = new Hashtable();
                 string sql = "INSERT INTO MOVIES (TYPE, CODE, TITLE, TAGS, STARS, COVER, NAME, FNAME) VALUES (@type, @code, @title, @tags, @stars, @cover, @name, @fname)";
@@ -740,7 +781,7 @@ namespace LocalSearcher
                 MySqlHelper.ExecuteNonQuery(sql, hs);
             }
 
-                
+
 
 
 
@@ -818,22 +859,57 @@ namespace LocalSearcher
 
             switch (na[0])
             {
-                case "DANDY": case "FSDSS": case "GS": case "KMHR": case "RCTD": case "SDDE": case "SDJS": case "SDMU": case "STAR": case "STARS": case "SW":
-                case "FAA": case "FSET": case "HBAD": case "HD": case "IDOL": case "IENE": case "IESP": case "IFDVA": case "MIST": case "NHDT": case "OKP":
-                case "PIYO": case "SDABP": case "SDAM": case "SDDM": case "SDEN": case "SDMT": case "SVDVD":
+                case "DANDY":
+                case "FSDSS":
+                case "GS":
+                case "KMHR":
+                case "RCTD":
+                case "SDDE":
+                case "SDJS":
+                case "SDMU":
+                case "STAR":
+                case "STARS":
+                case "SW":
+                case "FAA":
+                case "FSET":
+                case "HBAD":
+                case "HD":
+                case "IDOL":
+                case "IENE":
+                case "IESP":
+                case "IFDVA":
+                case "MIST":
+                case "NHDT":
+                case "OKP":
+                case "PIYO":
+                case "SDABP":
+                case "SDAM":
+                case "SDDM":
+                case "SDEN":
+                case "SDMT":
+                case "SVDVD":
 
                     result = "1" + result;
                     break;
-                case "DFE": case "EKW": case "GOD":
+                case "DFE":
+                case "EKW":
+                case "GOD":
                     result = "2" + result;
                     break;
-                case "PPS": case "WANZ":
+                case "PPS":
+                case "WANZ":
                     result = "3" + result;
                     break;
                 case "PMP":
                     result = "5" + result;
                     break;
-                case "BUR": case "HDI": case "IGN": case "LOL": case "MMD": case "NIN": case "SCR":
+                case "BUR":
+                case "HDI":
+                case "IGN":
+                case "LOL":
+                case "MMD":
+                case "NIN":
+                case "SCR":
                     result = "12" + result;
                     break;
                 case "GVG":
@@ -845,13 +921,20 @@ namespace LocalSearcher
                 case "CEMN":
                     result = "18" + result;
                     break;
-                case "BUD": case "BLD": case "HFD": case "AVGP": case "CGD": case "LID":
+                case "BUD":
+                case "BLD":
+                case "HFD":
+                case "AVGP":
+                case "CGD":
+                case "LID":
                     result = "24" + result;
                     break;
-                case "GXAZ": case "HXAD":
+                case "GXAZ":
+                case "HXAD":
                     result = "29" + result;
                     break;
-                case "HODV": case "HMPD":
+                case "HODV":
+                case "HMPD":
                     result = "41" + result;
                     break;
                 case "VSPDS":
@@ -863,28 +946,60 @@ namespace LocalSearcher
                 case "ODVHJ":
                     result = "48" + result;
                     break;
-                case "EKDV": case "GESU": case "MADM": case "NITR": case "SON":
+                case "EKDV":
+                case "GESU":
+                case "MADM":
+                case "NITR":
+                case "SON":
                     result = "49" + result;
                     break;
                 case "DV":
                     result = "53" + result;
                     break;
 
-                
-                case "ID13": case "ID14": case "ID15": case "ID16": case "ID17": case "ID18": case "ID19": case "ID20": case "ID21": case "ID22": case "ID23": case "ID24": 
-                case "25ID": case "26ID": case "27ID": case "28ID":
-                case "CSCT": case "SAIT": case "T28": case "HITMA": case "AKB": case "DAPD": case "DAVK": case "GRO": case "NKNO": case "PTNOZ": case "TKRO":
+
+                case "ID13":
+                case "ID14":
+                case "ID15":
+                case "ID16":
+                case "ID17":
+                case "ID18":
+                case "ID19":
+                case "ID20":
+                case "ID21":
+                case "ID22":
+                case "ID23":
+                case "ID24":
+                case "25ID":
+                case "26ID":
+                case "27ID":
+                case "28ID":
+                case "CSCT":
+                case "SAIT":
+                case "T28":
+                case "HITMA":
+                case "AKB":
+                case "DAPD":
+                case "DAVK":
+                case "GRO":
+                case "NKNO":
+                case "PTNOZ":
+                case "TKRO":
                 case "TPRO":
 
                     result = "55" + result;
                     break;
-                case "JKSR": case "BDSR": case "EIKI":
+                case "JKSR":
+                case "BDSR":
+                case "EIKI":
                     result = "57" + result;
                     break;
-                case "SRXV": case "XV":
+                case "SRXV":
+                case "XV":
                     result = "60" + result;
                     break;
-                case "NOV": case "SAK":
+                case "NOV":
+                case "SAK":
                     result = "66" + result;
                     break;
 
@@ -892,19 +1007,53 @@ namespace LocalSearcher
                     result = "83" + result;
                     break;
 
-                case "BAZX": case "MDBK": case "MDS": case "MDTM": case "MKMP": case "XRW": case "MDB": case "OKAX": case "ONGP": case "REAL":case "SCOP":
+                case "BAZX":
+                case "MDBK":
+                case "MDS":
+                case "MDTM":
+                case "MKMP":
+                case "XRW":
+                case "MDB":
+                case "OKAX":
+                case "ONGP":
+                case "REAL":
+                case "SCOP":
                 case "SCPX":
                     result = "84" + result;
                     break;
 
-                case "ABP": case "CPDE": case "DAC": case "DNW": case "DOCP": case "DTT": case "GIRO": case "GZAP": case "KFNE": case "ONEZ": case "SIM": 
-                case "SKSK": case "SRS": case "WAT": case "AKA": case "AVOP": case "DKN": case "GDW": case "HAR": case "KBI": case "MCT": case "ONET":
-                case "PPA": case "RTP": case "SGA": case "ULT":
-                    
+                case "ABP":
+                case "CPDE":
+                case "DAC":
+                case "DNW":
+                case "DOCP":
+                case "DTT":
+                case "GIRO":
+                case "GZAP":
+                case "KFNE":
+                case "ONEZ":
+                case "SIM":
+                case "SKSK":
+                case "SRS":
+                case "WAT":
+                case "AKA":
+                case "AVOP":
+                case "DKN":
+                case "GDW":
+                case "HAR":
+                case "KBI":
+                case "MCT":
+                case "ONET":
+                case "PPA":
+                case "RTP":
+                case "SGA":
+                case "ULT":
+
 
                     result = "118" + result;
                     break;
-                case "DCO": case "DPB":
+                case "DCO":
+                case "DPB":
                     result = "189" + result;
                     break;
                 case "IBW":
@@ -916,16 +1065,21 @@ namespace LocalSearcher
                 case "PTS":
                     result = "h_021" + result;
                     break;
-                case "MXGS": case "MXPC":
+                case "MXGS":
+                case "MXPC":
                     result = "h_068" + result;
                     break;
-                case "KTDS": case "KTR": case "KTRA":
+                case "KTDS":
+                case "KTR":
+                case "KTRA":
                     result = "h_094" + result;
                     break;
-                case "BBACOS": case "SO":
+                case "BBACOS":
+                case "SO":
                     result = "h_113" + result;
                     break;
-                case "YAL": case "YSN":
+                case "YAL":
+                case "YSN":
                     result = "h_127" + result;
                     break;
                 case "DIC":
@@ -943,10 +1097,13 @@ namespace LocalSearcher
                 case "JUTN":
                     result = "h_227" + result;
                     break;
-                case "EMOT": case "AMBI":case "NACR":
+                case "EMOT":
+                case "AMBI":
+                case "NACR":
                     result = "h_237" + result;
                     break;
-                case "SABA": case "SUPA":
+                case "SABA":
+                case "SUPA":
                     result = "h_244" + result;
                     break;
                 case "GHAT":
@@ -955,7 +1112,12 @@ namespace LocalSearcher
                 case "TKI":
                     result = "h_286" + result;
                     break;
-                case "FONE": case "FSKT": case "FSRE": case "FSTC": case "FSTE": case "LOVE":
+                case "FONE":
+                case "FSKT":
+                case "FSRE":
+                case "FSTC":
+                case "FSTE":
+                case "LOVE":
                     result = "h_491" + result;
                     break;
                 case "YJM":
@@ -964,7 +1126,8 @@ namespace LocalSearcher
                 case "URSH":
                     result = "h_593" + result;
                     break;
-                case "DLIS": case "SHM":
+                case "DLIS":
+                case "SHM":
                     result = "h_687" + result;
                     break;
                 case "ZEX":
@@ -997,7 +1160,9 @@ namespace LocalSearcher
                 case "BSTC":
                     result = "h_1117" + result;
                     break;
-                case "HONB": case "GDJU": case "POCO0":
+                case "HONB":
+                case "GDJU":
+                case "POCO0":
                     result = "h_1133" + result;
                     break;
                 case "MILK":
@@ -1042,7 +1207,7 @@ namespace LocalSearcher
 
             FileCache.Clear();
             SyncContext.Send(SetStatus, "正在扫描本地文件...");
-      
+
 
             CacheDataTask = new Task(() =>
             {
@@ -1071,7 +1236,15 @@ namespace LocalSearcher
             //CacheDataTask.Start();
         }
 
- 
+        private void btnback_Click(object sender, EventArgs e)
+        {
+            GetMoviesList(1, CurrentPage - 1, "暂无");
+        }
+
+        private void btnnext_Click(object sender, EventArgs e)
+        {
+            GetMoviesList(1, CurrentPage + 1, "暂无");
+        }
 
         private void menuItem3_Click(object sender, EventArgs e)
         {
@@ -1094,9 +1267,9 @@ namespace LocalSearcher
             {
                 int pcount = 0;
 
-                foreach(var f in FileCache)
+                foreach (var f in FileCache)
                 {
-                    
+
                     if (CheckMovie(f.FileName))
                     {
                         var md = GetMovieData(f.FullFileName);
@@ -1105,7 +1278,7 @@ namespace LocalSearcher
                         SyncContext.Send(SetStatus, string.Format("正在处理文件{0}...", md.fname));
                     }
 
-                    
+
                     pcount += 1;
                     int percent = Convert.ToInt32(((double)pcount / (double)FileCache.Count) * 100);
                     SyncContext.Send(SetProgress, percent);
