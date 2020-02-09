@@ -219,16 +219,6 @@ namespace LocalSearcher
 
 
 
-            /*
-            var r = GetMovieTags(4);
-
-            var a = r.Where(f => f.type == 1);
-
-            foreach(var i in a)
-            {
-                MessageBox.Show(i.name);
-            }
-            */
 
             /*
             SyncContext.Send(SetStatus, string.Format("开始更新", FileCache.Count));
