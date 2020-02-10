@@ -16,15 +16,7 @@ using HtmlAgilityPack;
 using QueryEngine;
 
 
-//tag查询
-//string sql = "SELECT MOVIES.NAME AS NAME FROM (TAGS INNER JOIN TAGSMAP ON TAGSMAP.TID = TAGS.ID ) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID WHERE TAGS.NAME = @NAME LIMIT 0, 2";
-//MySqlParameter[] paramarr = { new MySqlParameter("@name", tbxpath.Text)};
-//var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
-
-//while (r.Read())
-//{
-//MessageBox.Show(r.GetString(r.GetOrdinal("NAME")));
-//}
+//SELECT count(*) as count, tags.caption AS NAME FROM (TAGS INNER JOIN TAGSMAP ON TAGSMAP.TID = TAGS.ID ) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID WHERE tags.type = 0 GROUP BY tags.name ORDER BY count desc
 
 namespace LocalSearcher
 {
@@ -190,6 +182,18 @@ namespace LocalSearcher
         }
 
 
+        public void LockUI(object o)
+        {
+            var b = (bool)o;
+
+            panelbn.Enabled = !b;
+            panelsearch.Enabled = !b;
+            paneltv.Enabled = !b;
+            panelv.Enabled = !b;
+
+        }
+
+
         public MainForm()
         {
             //
@@ -211,7 +215,22 @@ namespace LocalSearcher
             //string s = Convert.ToBase64String(ba);
             //File.WriteAllText(Directory.GetCurrentDirectory() + "/test.txt", s);
 
+            string sql = "SELECT count(*) as count, tags.caption as caption, tags.type as type FROM (TAGS INNER JOIN TAGSMAP ON TAGSMAP.TID = TAGS.ID ) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID GROUP BY tags.caption ORDER BY count desc";
+            var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, null);
+            TreeNode[] tnodes = { new TreeNode("源站标签"), new TreeNode("自定义标签"), new TreeNode("艺人标签") };
+           
+            while (r.Read())
+            {
+                var type = r.GetInt32(r.GetOrdinal("type"));
+                var caption = r.GetString(r.GetOrdinal("caption"));
 
+                if (tnodes[type].GetNodeCount(true) < 10)
+                    tnodes[type].Nodes.Add(caption);
+            }
+
+            tvtags.Nodes.AddRange(tnodes);
+            tvtags.ExpandAll();
+            r.Close();
 
             GetMoviesList(1, 1, "暂无");
 
@@ -235,8 +254,8 @@ namespace LocalSearcher
 
         public void GetMoviesList(int mtype, int page, string word = null)
         {
-
             lvFile.Items.Clear();
+            imageList.Images.Clear();
             CurrentPage = page;
             MySqlParameter[] paramarr;
             string sql = "";
@@ -248,6 +267,7 @@ namespace LocalSearcher
 
             Task ttask = new Task(() =>
             {
+                SyncContext.Send(LockUI, true);
 
                 if (mtype > 1)
                 {
@@ -281,8 +301,8 @@ namespace LocalSearcher
                     string code = reader.GetString(reader.GetOrdinal("code"));
                     string title = reader.GetString(reader.GetOrdinal("title"));
                     var mtd = GetMovieTags(mid);
-                    var tags = mtd.Where(m => m.type == 0).Select(m => m.caption).ToList<string>();
-                    var stars = mtd.Where(m => m.type == 1).Select(m => m.caption).ToList<string>();
+                    var tags = mtd.Where(m => m.type < 2).Select(m => m.caption).ToList<string>();
+                    var stars = mtd.Where(m => m.type == 2).Select(m => m.caption).ToList<string>();
                     string name = reader.GetString(reader.GetOrdinal("name"));
                     string fname = reader.GetString(reader.GetOrdinal("fname"));
                     var buffer = new byte[512000];
@@ -302,7 +322,7 @@ namespace LocalSearcher
                     tag.type = type;
                     tag.fullname = fname;
                     tag.title = title;
-                    tag.tags = GetMovieTags(mid);
+                    tag.tags = mtd;
                     item.Tag = tag;
                     LvList.Add(item);
                     var md = new Movie(fname);
@@ -323,7 +343,7 @@ namespace LocalSearcher
                 SyncContext.Send(AddListItem, LvList.ToArray());
                 SyncContext.Send(SetBackNext, (bback | bnext));
                 SyncContext.Send(SetStatus, string.Format("共查询到{0}个对象", count));
-                
+                SyncContext.Send(LockUI, false);
 
             });
 
@@ -378,7 +398,7 @@ namespace LocalSearcher
 
                 foreach (var s in m.stars)
                 {
-                    int sid = CreateTag(1, s);
+                    int sid = CreateTag(2, s);
                     var i = CreateTagsMap(mid, sid);
 
 
@@ -785,24 +805,14 @@ namespace LocalSearcher
 
 
 
-
-
-
-
-
-
-
         private void ExplorerForm_Resize(object sender, EventArgs e)
         {
 
             MainForm ef = sender as MainForm;
-            paneladdr.Width = ef.Width - 100;
-            panelfv.Width = ef.Width - 100;
-            panelfv.Height = ef.Height - 110;
-            paneltv.Height = ef.Height - 110;
-            //panelcontrol.Width = panelfv.Width / 2;
-            //panelcontrol.Top = panelfv.Bottom;
-            //panelcontrol.Left = (panelfv.Width / 2 - panelcontrol.Width /2 ) + 65;
+            panelsearch.Width = ef.Width - 152;
+            panelv.Width = ef.Width - 152;
+            panelv.Height = ef.Height - 120;
+            paneltv.Height = ef.Height - 120;
 
         }
 
@@ -1234,6 +1244,40 @@ namespace LocalSearcher
         private void btnnext_Click(object sender, EventArgs e)
         {
             GetMoviesList(1, CurrentPage + 1, "暂无");
+        }
+
+        private void tbxpath_TextChanged(object sender, EventArgs e)
+        {
+            GetMoviesList(1, 1, tbxsearch.Text);
+        }
+
+        private void lvFile_ItemMouseHover(object sender, ListViewItemMouseHoverEventArgs e)
+        {
+            ToolTip toolTip = new ToolTip();
+
+            ListItemTag tag = (ListItemTag)e.Item.Tag;
+            var fname = Path.GetFileName(tag.fullname);
+            var cover = imageList.Images[imageList.Images.IndexOfKey(fname)];
+            string tip = "";
+
+            foreach(var t in tag.tags)
+            {
+                tip += t.caption + " ";
+            }
+
+
+            toolTip.AutoPopDelay = 5000;
+            toolTip.InitialDelay = 0;
+            toolTip.ReshowDelay = 0;
+
+            toolTip.SetToolTip((e.Item).ListView, tip);
+           
+
+        }
+
+        private void tvtags_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
+        {
+            tbxsearch.Text = e.Node.Text;
         }
 
         private void menuItem3_Click(object sender, EventArgs e)

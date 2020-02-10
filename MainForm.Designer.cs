@@ -31,24 +31,24 @@ namespace LocalSearcher
             this.menuItem4 = new System.Windows.Forms.MenuItem();
             this.btnnext = new System.Windows.Forms.Button();
             this.btnback = new System.Windows.Forms.Button();
-            this.tbxpath = new System.Windows.Forms.TextBox();
-            this.panelbg = new System.Windows.Forms.Panel();
-            this.paneladdr = new System.Windows.Forms.Panel();
-            this.panelfv = new System.Windows.Forms.Panel();
+            this.tbxsearch = new System.Windows.Forms.TextBox();
+            this.panelbn = new System.Windows.Forms.Panel();
+            this.panelsearch = new System.Windows.Forms.Panel();
+            this.panelv = new System.Windows.Forms.Panel();
             this.lvFile = new System.Windows.Forms.ListView();
             this.columnHeader1 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader2 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader3 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader4 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.paneltv = new System.Windows.Forms.Panel();
-            this.tvdir = new System.Windows.Forms.TreeView();
+            this.tvtags = new System.Windows.Forms.TreeView();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.lblstatus = new System.Windows.Forms.ToolStripStatusLabel();
             this.prgpercent = new System.Windows.Forms.ToolStripProgressBar();
             this.imageList = new System.Windows.Forms.ImageList(this.components);
-            this.panelbg.SuspendLayout();
-            this.paneladdr.SuspendLayout();
-            this.panelfv.SuspendLayout();
+            this.panelbn.SuspendLayout();
+            this.panelsearch.SuspendLayout();
+            this.panelv.SuspendLayout();
             this.paneltv.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             this.SuspendLayout();
@@ -87,10 +87,11 @@ namespace LocalSearcher
             // 
             // btnnext
             // 
+            this.btnnext.Dock = System.Windows.Forms.DockStyle.Right;
             this.btnnext.Enabled = false;
-            this.btnnext.Location = new System.Drawing.Point(34, 3);
+            this.btnnext.Location = new System.Drawing.Point(70, 0);
             this.btnnext.Name = "btnnext";
-            this.btnnext.Size = new System.Drawing.Size(30, 25);
+            this.btnnext.Size = new System.Drawing.Size(60, 21);
             this.btnnext.TabIndex = 34;
             this.btnnext.Text = ">";
             this.btnnext.UseVisualStyleBackColor = true;
@@ -98,47 +99,49 @@ namespace LocalSearcher
             // 
             // btnback
             // 
+            this.btnback.Dock = System.Windows.Forms.DockStyle.Left;
             this.btnback.Enabled = false;
-            this.btnback.Location = new System.Drawing.Point(2, 3);
+            this.btnback.Location = new System.Drawing.Point(0, 0);
             this.btnback.Name = "btnback";
-            this.btnback.Size = new System.Drawing.Size(30, 25);
+            this.btnback.Size = new System.Drawing.Size(60, 21);
             this.btnback.TabIndex = 33;
             this.btnback.Text = "<";
             this.btnback.UseVisualStyleBackColor = true;
             this.btnback.Click += new System.EventHandler(this.btnback_Click);
             // 
-            // tbxpath
+            // tbxsearch
             // 
-            this.tbxpath.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tbxpath.Location = new System.Drawing.Point(0, 0);
-            this.tbxpath.Name = "tbxpath";
-            this.tbxpath.Size = new System.Drawing.Size(606, 21);
-            this.tbxpath.TabIndex = 32;
+            this.tbxsearch.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tbxsearch.Location = new System.Drawing.Point(0, 0);
+            this.tbxsearch.Name = "tbxsearch";
+            this.tbxsearch.Size = new System.Drawing.Size(540, 21);
+            this.tbxsearch.TabIndex = 32;
+            this.tbxsearch.TextChanged += new System.EventHandler(this.tbxpath_TextChanged);
             // 
-            // panelbg
+            // panelbn
             // 
-            this.panelbg.Controls.Add(this.btnback);
-            this.panelbg.Controls.Add(this.btnnext);
-            this.panelbg.Location = new System.Drawing.Point(1, 1);
-            this.panelbg.Name = "panelbg";
-            this.panelbg.Size = new System.Drawing.Size(71, 33);
-            this.panelbg.TabIndex = 36;
+            this.panelbn.Controls.Add(this.btnback);
+            this.panelbn.Controls.Add(this.btnnext);
+            this.panelbn.Location = new System.Drawing.Point(1, 4);
+            this.panelbn.Name = "panelbn";
+            this.panelbn.Size = new System.Drawing.Size(130, 21);
+            this.panelbn.TabIndex = 36;
             // 
-            // paneladdr
+            // panelsearch
             // 
-            this.paneladdr.Controls.Add(this.tbxpath);
-            this.paneladdr.Location = new System.Drawing.Point(71, 6);
-            this.paneladdr.Name = "paneladdr";
-            this.paneladdr.Size = new System.Drawing.Size(606, 25);
-            this.paneladdr.TabIndex = 37;
+            this.panelsearch.Controls.Add(this.tbxsearch);
+            this.panelsearch.Location = new System.Drawing.Point(133, 5);
+            this.panelsearch.Name = "panelsearch";
+            this.panelsearch.Size = new System.Drawing.Size(540, 21);
+            this.panelsearch.TabIndex = 37;
             // 
-            // panelfv
+            // panelv
             // 
-            this.panelfv.Controls.Add(this.lvFile);
-            this.panelfv.Location = new System.Drawing.Point(71, 37);
-            this.panelfv.Name = "panelfv";
-            this.panelfv.Size = new System.Drawing.Size(606, 390);
-            this.panelfv.TabIndex = 38;
+            this.panelv.Controls.Add(this.lvFile);
+            this.panelv.Location = new System.Drawing.Point(133, 37);
+            this.panelv.Name = "panelv";
+            this.panelv.Size = new System.Drawing.Size(540, 390);
+            this.panelv.TabIndex = 38;
             // 
             // lvFile
             // 
@@ -151,9 +154,10 @@ namespace LocalSearcher
             this.lvFile.HideSelection = false;
             this.lvFile.Location = new System.Drawing.Point(0, 0);
             this.lvFile.Name = "lvFile";
-            this.lvFile.Size = new System.Drawing.Size(606, 390);
+            this.lvFile.Size = new System.Drawing.Size(540, 390);
             this.lvFile.TabIndex = 36;
             this.lvFile.UseCompatibleStateImageBehavior = false;
+            this.lvFile.ItemMouseHover += new System.Windows.Forms.ListViewItemMouseHoverEventHandler(this.lvFile_ItemMouseHover);
             this.lvFile.SelectedIndexChanged += new System.EventHandler(this.lvfile_SelectedIndexChanged);
             this.lvFile.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.lvfile_MouseDoubleClick);
             // 
@@ -179,19 +183,20 @@ namespace LocalSearcher
             // 
             // paneltv
             // 
-            this.paneltv.Controls.Add(this.tvdir);
+            this.paneltv.Controls.Add(this.tvtags);
             this.paneltv.Location = new System.Drawing.Point(3, 37);
             this.paneltv.Name = "paneltv";
-            this.paneltv.Size = new System.Drawing.Size(65, 390);
+            this.paneltv.Size = new System.Drawing.Size(128, 390);
             this.paneltv.TabIndex = 39;
             // 
-            // tvdir
+            // tvtags
             // 
-            this.tvdir.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.tvdir.Location = new System.Drawing.Point(0, 0);
-            this.tvdir.Name = "tvdir";
-            this.tvdir.Size = new System.Drawing.Size(65, 390);
-            this.tvdir.TabIndex = 0;
+            this.tvtags.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tvtags.Location = new System.Drawing.Point(0, 0);
+            this.tvtags.Name = "tvtags";
+            this.tvtags.Size = new System.Drawing.Size(128, 390);
+            this.tvtags.TabIndex = 0;
+            this.tvtags.NodeMouseClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.tvtags_NodeMouseClick);
             // 
             // statusStrip1
             // 
@@ -218,7 +223,7 @@ namespace LocalSearcher
             // imageList
             // 
             this.imageList.ColorDepth = System.Windows.Forms.ColorDepth.Depth24Bit;
-            this.imageList.ImageSize = new System.Drawing.Size(128, 128);
+            this.imageList.ImageSize = new System.Drawing.Size(150, 150);
             this.imageList.TransparentColor = System.Drawing.Color.Transparent;
             // 
             // MainForm
@@ -227,19 +232,19 @@ namespace LocalSearcher
             this.ClientSize = new System.Drawing.Size(1264, 660);
             this.Controls.Add(this.statusStrip1);
             this.Controls.Add(this.paneltv);
-            this.Controls.Add(this.panelfv);
-            this.Controls.Add(this.paneladdr);
-            this.Controls.Add(this.panelbg);
+            this.Controls.Add(this.panelv);
+            this.Controls.Add(this.panelsearch);
+            this.Controls.Add(this.panelbn);
             this.Menu = this.mainMenu1;
             this.Name = "MainForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "LocalSearcher";
             this.Load += new System.EventHandler(this.ExplorerForm_Load);
             this.Resize += new System.EventHandler(this.ExplorerForm_Resize);
-            this.panelbg.ResumeLayout(false);
-            this.paneladdr.ResumeLayout(false);
-            this.paneladdr.PerformLayout();
-            this.panelfv.ResumeLayout(false);
+            this.panelbn.ResumeLayout(false);
+            this.panelsearch.ResumeLayout(false);
+            this.panelsearch.PerformLayout();
+            this.panelv.ResumeLayout(false);
             this.paneltv.ResumeLayout(false);
             this.statusStrip1.ResumeLayout(false);
             this.statusStrip1.PerformLayout();
@@ -265,17 +270,17 @@ namespace LocalSearcher
         private IContainer components;
         private Button btnnext;
         private Button btnback;
-        private TextBox tbxpath;
-        private Panel panelbg;
-        private Panel paneladdr;
-        private Panel panelfv;
+        private TextBox tbxsearch;
+        private Panel panelbn;
+        private Panel panelsearch;
+        private Panel panelv;
         private ListView lvFile;
         private ColumnHeader columnHeader1;
         private ColumnHeader columnHeader2;
         private ColumnHeader columnHeader3;
         private ColumnHeader columnHeader4;
         private Panel paneltv;
-        private TreeView tvdir;
+        private TreeView tvtags;
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel lblstatus;
         private MainMenu mainMenu1;
