@@ -40,15 +40,22 @@ namespace LocalSearcher
             this.columnHeader2 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader3 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader4 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.menulv = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.miopen = new System.Windows.Forms.ToolStripMenuItem();
+            this.miopenpath = new System.Windows.Forms.ToolStripMenuItem();
+            this.micopycid = new System.Windows.Forms.ToolStripMenuItem();
+            this.miedit = new System.Windows.Forms.ToolStripMenuItem();
             this.paneltv = new System.Windows.Forms.Panel();
             this.tvtags = new System.Windows.Forms.TreeView();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.lblstatus = new System.Windows.Forms.ToolStripStatusLabel();
             this.prgpercent = new System.Windows.Forms.ToolStripProgressBar();
             this.imageList = new System.Windows.Forms.ImageList(this.components);
+            this.midelete = new System.Windows.Forms.ToolStripMenuItem();
             this.panelbn.SuspendLayout();
             this.panelsearch.SuspendLayout();
             this.panelv.SuspendLayout();
+            this.menulv.SuspendLayout();
             this.paneltv.SuspendLayout();
             this.statusStrip1.SuspendLayout();
             this.SuspendLayout();
@@ -116,7 +123,7 @@ namespace LocalSearcher
             this.tbxsearch.Name = "tbxsearch";
             this.tbxsearch.Size = new System.Drawing.Size(540, 21);
             this.tbxsearch.TabIndex = 32;
-            this.tbxsearch.TextChanged += new System.EventHandler(this.tbxpath_TextChanged);
+            this.tbxsearch.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.tbxsearch_KeyPress);
             // 
             // panelbn
             // 
@@ -150,6 +157,7 @@ namespace LocalSearcher
             this.columnHeader2,
             this.columnHeader3,
             this.columnHeader4});
+            this.lvFile.ContextMenuStrip = this.menulv;
             this.lvFile.Dock = System.Windows.Forms.DockStyle.Fill;
             this.lvFile.HideSelection = false;
             this.lvFile.Location = new System.Drawing.Point(0, 0);
@@ -181,6 +189,45 @@ namespace LocalSearcher
             this.columnHeader4.Text = "时间";
             this.columnHeader4.Width = 140;
             // 
+            // menulv
+            // 
+            this.menulv.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.miopen,
+            this.miopenpath,
+            this.micopycid,
+            this.midelete,
+            this.miedit});
+            this.menulv.Name = "menulv";
+            this.menulv.Size = new System.Drawing.Size(185, 114);
+            // 
+            // miopen
+            // 
+            this.miopen.Name = "miopen";
+            this.miopen.Size = new System.Drawing.Size(184, 22);
+            this.miopen.Text = "打开";
+            this.miopen.Click += new System.EventHandler(this.miopen_Click);
+            // 
+            // miopenpath
+            // 
+            this.miopenpath.Name = "miopenpath";
+            this.miopenpath.Size = new System.Drawing.Size(184, 22);
+            this.miopenpath.Text = "打开文件所在的位置";
+            this.miopenpath.Click += new System.EventHandler(this.miopenpath_Click);
+            // 
+            // micopycid
+            // 
+            this.micopycid.Name = "micopycid";
+            this.micopycid.Size = new System.Drawing.Size(184, 22);
+            this.micopycid.Text = "复制CID";
+            this.micopycid.Click += new System.EventHandler(this.micopycid_Click);
+            // 
+            // miedit
+            // 
+            this.miedit.Name = "miedit";
+            this.miedit.Size = new System.Drawing.Size(184, 22);
+            this.miedit.Text = "属性";
+            this.miedit.Click += new System.EventHandler(this.miedit_Click);
+            // 
             // paneltv
             // 
             this.paneltv.Controls.Add(this.tvtags);
@@ -203,9 +250,9 @@ namespace LocalSearcher
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.lblstatus,
             this.prgpercent});
-            this.statusStrip1.Location = new System.Drawing.Point(0, 638);
+            this.statusStrip1.Location = new System.Drawing.Point(0, 548);
             this.statusStrip1.Name = "statusStrip1";
-            this.statusStrip1.Size = new System.Drawing.Size(1264, 22);
+            this.statusStrip1.Size = new System.Drawing.Size(1238, 22);
             this.statusStrip1.TabIndex = 40;
             this.statusStrip1.Text = "statusStrip1";
             // 
@@ -226,10 +273,17 @@ namespace LocalSearcher
             this.imageList.ImageSize = new System.Drawing.Size(150, 150);
             this.imageList.TransparentColor = System.Drawing.Color.Transparent;
             // 
+            // midelete
+            // 
+            this.midelete.Name = "midelete";
+            this.midelete.Size = new System.Drawing.Size(184, 22);
+            this.midelete.Text = "删除";
+            this.midelete.Click += new System.EventHandler(this.midelete_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleBaseSize = new System.Drawing.Size(6, 14);
-            this.ClientSize = new System.Drawing.Size(1264, 660);
+            this.ClientSize = new System.Drawing.Size(1238, 570);
             this.Controls.Add(this.statusStrip1);
             this.Controls.Add(this.paneltv);
             this.Controls.Add(this.panelv);
@@ -245,6 +299,7 @@ namespace LocalSearcher
             this.panelsearch.ResumeLayout(false);
             this.panelsearch.PerformLayout();
             this.panelv.ResumeLayout(false);
+            this.menulv.ResumeLayout(false);
             this.paneltv.ResumeLayout(false);
             this.statusStrip1.ResumeLayout(false);
             this.statusStrip1.PerformLayout();
@@ -290,6 +345,12 @@ namespace LocalSearcher
         private ImageList imageList;
         private ToolStripProgressBar prgpercent;
         private MenuItem menuItem4;
+        private ContextMenuStrip menulv;
+        private ToolStripMenuItem miopen;
+        private ToolStripMenuItem miopenpath;
+        private ToolStripMenuItem miedit;
+        private ToolStripMenuItem micopycid;
+        private ToolStripMenuItem midelete;
     }
 }
 

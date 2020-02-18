@@ -13,10 +13,16 @@ using MySql.Data.MySqlClient;
 using System.Threading;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using QueryEngine;
+
+//byte[] ba = File.ReadAllBytes(Directory.GetCurrentDirectory() + "/test.jpg");
+//string s = Convert.ToBase64String(ba);
+//File.WriteAllText(Directory.GetCurrentDirectory() + "/test.txt", s);
 
 
-//SELECT count(*) as count, tags.caption AS NAME FROM (TAGS INNER JOIN TAGSMAP ON TAGSMAP.TID = TAGS.ID ) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID WHERE tags.type = 0 GROUP BY tags.name ORDER BY count desc
+
+//SELECT movies.* FROM (TAGS INNER JOIN TAGSMAP ON TAGSMAP.TID = TAGS.ID ) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID where TAGS.caption like @word order by name desc
+//查询重复
+//SELECT * FROM movies AS ta WHERE ta.id <> ( SELECT min( tb.id ) FROM movies AS tb WHERE ta.fname = tb.fname ) order by fname, id
 
 namespace LocalSearcher
 {
@@ -37,6 +43,8 @@ namespace LocalSearcher
 
 
 
+
+
         public class Movie
         {
             public int id;
@@ -44,6 +52,7 @@ namespace LocalSearcher
             public string code;
             public string title;
             public List<string> tags;
+            public List<string> customtags;
             public List<string> stars;
             public MemoryStream cover;
             public string name;
@@ -55,6 +64,7 @@ namespace LocalSearcher
                 this.code = Path.GetFileNameWithoutExtension(fname);
                 this.title = "暂无";
                 this.tags = new List<string>();
+                this.customtags = new List<string>();
                 this.stars = new List<string>();
                 this.cover = new MemoryStream();
                 this.name = Path.GetFileName(fname);
@@ -78,6 +88,7 @@ namespace LocalSearcher
         {
             public int id;
             public int type;
+            public string code;
             public string fullname;
             public string title;
             public TagData[] tags;
@@ -106,13 +117,14 @@ namespace LocalSearcher
         public string dmmdataurl = "https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=";
 
         public static List<Movie> MovieList = new List<Movie>();
-        public static List<FileAndDirectoryEntry> FileCache = new List<FileAndDirectoryEntry>();
+        public static List<Everything.FileInfo> FileCache = new List<Everything.FileInfo>();
         SynchronizationContext SyncContext = null;
-        public int CurrentPage = 0;
-
-
+        public int searchtype, searchpage = 0;
+        public string searchword = "";
 
         public Task CacheDataTask, SaveDataTask, UpdateDataTask;
+
+
 
 
         public delegate void EventHandler();
@@ -205,20 +217,18 @@ namespace LocalSearcher
             hparam = new Hparam();
             hresp = new Hresp();
             lvFile.LargeImageList = imageList;
-
         }
 
 
         private void ExplorerForm_Load(object sender, EventArgs e)
         {
-            //byte[] ba = File.ReadAllBytes(Directory.GetCurrentDirectory() + "/test.jpg");
-            //string s = Convert.ToBase64String(ba);
-            //File.WriteAllText(Directory.GetCurrentDirectory() + "/test.txt", s);
+
+
 
             string sql = "SELECT count(*) as count, tags.caption as caption, tags.type as type FROM (TAGS INNER JOIN TAGSMAP ON TAGSMAP.TID = TAGS.ID ) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID GROUP BY tags.caption ORDER BY count desc";
             var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, null);
             TreeNode[] tnodes = { new TreeNode("源站标签"), new TreeNode("自定义标签"), new TreeNode("艺人标签") };
-           
+
             while (r.Read())
             {
                 var type = r.GetInt32(r.GetOrdinal("type"));
@@ -231,32 +241,18 @@ namespace LocalSearcher
             tvtags.Nodes.AddRange(tnodes);
             tvtags.ExpandAll();
             r.Close();
-
             GetMoviesList(1, 1, "暂无");
-
-
-
-
-
-
-            /*
-            SyncContext.Send(SetStatus, string.Format("开始更新", FileCache.Count));
-
-            Task t = new Task(() => {
-                UpdateMoviesData();
-                SyncContext.Send(SetStatus, string.Format("更新完成", FileCache.Count));
-            });
-
-            t.Start();
-            */
         }
 
 
         public void GetMoviesList(int mtype, int page, string word = null)
         {
+            MovieList.Clear();
             lvFile.Items.Clear();
             imageList.Images.Clear();
-            CurrentPage = page;
+            searchtype = mtype;
+            searchpage = page;
+            searchword = word;
             MySqlParameter[] paramarr;
             string sql = "";
             int total = 0;
@@ -267,32 +263,36 @@ namespace LocalSearcher
 
             Task ttask = new Task(() =>
             {
+
+
+
+
                 SyncContext.Send(LockUI, true);
 
                 if (mtype > 1)
                 {
-                    sql = "SELECT COUNT(*) FROM MOVIES WHERE TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD))";
+                    sql = "SELECT DISTINCT COUNT(*) FROM MOVIES WHERE TITLE LIKE @WORD OR CODE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD))";
                     paramarr = new MySqlParameter[2];
                     paramarr[0] = new MySqlParameter("@page", (page - 1) * 100);
                     paramarr[1] = new MySqlParameter("@word", "%" + word + "%");
                     total = Convert.ToInt32(MySqlHelper.ExecuteScalar(sql, CommandType.Text, paramarr));
-                    sql = "SELECT * FROM MOVIES WHERE TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD)) ORDER BY NAME LIMIT @PAGE, 100";
+                    sql = "SELECT DISTINCT ID, TYPE, CODE, TITLE, TAGS, STARS, NAME, FNAME FROM MOVIES WHERE TITLE LIKE @WORD OR CODE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD)) ORDER BY NAME LIMIT @PAGE, 100";
                 }
                 else
                 {
-                    sql = "SELECT COUNT(*) FROM MOVIES WHERE TYPE = @TYPE AND (TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD)))";
+                    sql = "SELECT DISTINCT COUNT(*) FROM MOVIES WHERE TYPE = @TYPE AND (TITLE LIKE @WORD OR CODE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD)))";
                     paramarr = new MySqlParameter[3];
                     paramarr[0] = new MySqlParameter("@type", mtype);
                     paramarr[1] = new MySqlParameter("@page", (page - 1) * 100);
                     paramarr[2] = new MySqlParameter("@word", "%" + word + "%");
                     total = Convert.ToInt32(MySqlHelper.ExecuteScalar(sql, CommandType.Text, paramarr));
-                    sql = "SELECT * FROM MOVIES WHERE TYPE = @TYPE AND (TITLE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD))) ORDER BY NAME LIMIT @PAGE, 100";
+                    sql = "SELECT DISTINCT ID, TYPE, CODE, TITLE, TAGS, STARS, NAME, FNAME FROM MOVIES WHERE TYPE = @TYPE AND (TITLE LIKE @WORD OR CODE LIKE @WORD OR ID IN (SELECT MID FROM TAGSMAP WHERE TID IN (SELECT ID FROM TAGS WHERE CAPTION LIKE @WORD))) ORDER BY NAME LIMIT @PAGE, 100";
                 }
 
 
                 var reader = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
                 SyncContext.Send(SetStatus, "正在查询数据...");
-                
+
 
                 while (reader.Read())
                 {
@@ -301,38 +301,35 @@ namespace LocalSearcher
                     string code = reader.GetString(reader.GetOrdinal("code"));
                     string title = reader.GetString(reader.GetOrdinal("title"));
                     var mtd = GetMovieTags(mid);
-                    var tags = mtd.Where(m => m.type < 2).Select(m => m.caption).ToList<string>();
+                    var tags = mtd.Where(m => m.type == 0).Select(m => m.caption).ToList<string>();
+                    var customtags = mtd.Where(m => m.type == 1).Select(m => m.caption).ToList<string>();
                     var stars = mtd.Where(m => m.type == 2).Select(m => m.caption).ToList<string>();
                     string name = reader.GetString(reader.GetOrdinal("name"));
                     string fname = reader.GetString(reader.GetOrdinal("fname"));
-                    var buffer = new byte[512000];
-                    var length = reader.GetBytes(reader.GetOrdinal("cover"), 0, buffer, 0, buffer.Length);
-                    MemoryStream cover = new MemoryStream(buffer);
-
-                    if (length == 0)
-                    {
-                        cover = new MemoryStream(Convert.FromBase64String(nopic));
-                    }
-
+                    var cover = GetMovieCover(mid);
                     SyncContext.Send(AddImageList, new ImageData(name, Image.FromStream(cover)));
                     ListViewItem item = new ListViewItem(name);
                     item.ImageIndex = imageList.Images.IndexOfKey(name);
                     ListItemTag tag = new ListItemTag();
                     tag.id = mid;
                     tag.type = type;
+                    tag.code = code;
                     tag.fullname = fname;
                     tag.title = title;
                     tag.tags = mtd;
                     item.Tag = tag;
                     LvList.Add(item);
                     var md = new Movie(fname);
-                    md.id = mid; md.type = type; md.code = code; md.title = title; md.tags = tags; md.stars = stars; md.name = name; md.fname = fname; md.cover = cover;
+                    md.id = mid; md.type = type; md.code = code; md.title = title; md.tags = tags; md.customtags = customtags; md.stars = stars; md.name = name; md.fname = fname; md.cover = cover;
                     MovieList.Add(md);
                     ++count;
-               
+
                 }
 
                 reader.Close();
+
+
+
 
                 if (page <= 1)
                     bback = 0;
@@ -348,16 +345,14 @@ namespace LocalSearcher
             });
 
             ttask.Start();
-            //tbxpath.AutoCompleteCustomSource = GetTags();
-            //tbxpath.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
-            //tbxpath.AutoCompleteSource = AutoCompleteSource.CustomSource;
+
         }
 
 
 
-        public void UpdateMoviesData()
+        public void FixMoviesData()
         {
-            string sql = "SELECT * FROM MOVIES WHERE 1 = 1";
+            string sql = "SELECT ID, TYPE, CODE, TITLE, TAGS, STARS, NAME, FNAME FROM MOVIES";
             var reader = MySqlHelper.ExecuteReader(sql, CommandType.Text, null);
 
 
@@ -372,8 +367,8 @@ namespace LocalSearcher
 
 
                 List<string> tags = new List<string>();
-
-                if (!reader.IsDBNull(reader.GetOrdinal("stars")))
+   
+                if (!reader.IsDBNull(reader.GetOrdinal("tags")))
                     tags = reader.GetString(reader.GetOrdinal("tags")).Split('|').ToList();
 
 
@@ -383,25 +378,16 @@ namespace LocalSearcher
                     stars = reader.GetString(reader.GetOrdinal("stars")).Split('|').ToList();
 
 
-                var m = new Movie(fname);
-                m.type = type; m.code = code; m.title = title; m.tags = tags; m.stars = stars; m.name = name; m.fname = fname;
-                MovieList.Add(m);
-
-                foreach (var t in m.tags)
+                foreach (var t in tags)
                 {
                     int tid = CreateTag(0, t);
                     var i = CreateTagsMap(mid, tid);
-
-
-
                 }
 
-                foreach (var s in m.stars)
+                foreach (var s in stars)
                 {
                     int sid = CreateTag(2, s);
                     var i = CreateTagsMap(mid, sid);
-
-
                 }
 
             }
@@ -413,30 +399,41 @@ namespace LocalSearcher
 
 
 
-        public TagData[] GetMovieTags(int mid)
+        public MemoryStream GetMovieCover(int mid)
         {
+            string sql = "SELECT COVER FROM MOVIES WHERE ID = @ID";
+            MemoryStream cover = new MemoryStream();
+            var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, new MySqlParameter("@id", mid));
 
-            string sql = "SELECT TAGS.TYPE, TAGS.NAME, TAGS.CAPTION FROM (TAGS LEFT JOIN TAGSMAP ON TAGS.ID = TAGSMAP.TID) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID WHERE MOVIES.ID = @ID";
-            MySqlParameter[] paramarr = { new MySqlParameter("@id", mid) };
-            var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
-            List<TagData> result = new List<TagData>();
-
-            while (r.Read())
+            while(r.Read())
             {
 
-                TagData t = new TagData();
-                t.type = r.GetInt32(r.GetOrdinal("TYPE"));
-                t.name = r.GetString(r.GetOrdinal("NAME"));
-                t.caption = r.GetString(r.GetOrdinal("CAPTION"));
-                result.Add(t);
+                long length = r.GetBytes(r.GetOrdinal("cover"), 0, null, 0, 0);
+
+
+                if (length == 0)
+                {
+                    cover = new MemoryStream(Convert.FromBase64String(nopic));
+                }
+                else
+                {
+                    var buffer = new byte[length];
+                    length = r.GetBytes(r.GetOrdinal("cover"), 0, buffer, 0, (int)length);
+                    cover.Write(buffer, 0, (int)length);
+
+                }
+
             }
 
+
             r.Close();
-            return result.ToArray();
+            return cover;
         }
+
+
         public int CheckTag(int type, string tag)
         {
-            string sql = "SELECT * FROM TAGS WHERE TYPE = @TYPE AND NAME = @NAME";
+            string sql = "SELECT * FROM TAGS WHERE TYPE = @TYPE AND (NAME = @NAME OR CAPTION = @NAME)";
             int result = 0;
 
             MySqlParameter[] paramarr = { new MySqlParameter("@type", type), new MySqlParameter("@name", tag) };
@@ -448,6 +445,8 @@ namespace LocalSearcher
 
             return result;
         }
+
+
 
         public int CreateTag(int type, string tag)
         {
@@ -488,26 +487,143 @@ namespace LocalSearcher
 
 
 
-
-
-
-
-        public AutoCompleteStringCollection GetTags()
+        public TagData[] GetMovieTags(int mid)
         {
-            var result = new AutoCompleteStringCollection();
-            string sql = "SELECT CAPTION FROM TAGS";
-            var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, null);
+
+            string sql = "SELECT TAGS.TYPE, TAGS.NAME, TAGS.CAPTION FROM (TAGS LEFT JOIN TAGSMAP ON TAGS.ID = TAGSMAP.TID) INNER JOIN MOVIES ON MOVIES.ID = TAGSMAP.MID WHERE MOVIES.ID = @ID";
+            MySqlParameter[] paramarr = { new MySqlParameter("@id", mid) };
+            var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, paramarr);
+            List<TagData> result = new List<TagData>();
 
             while (r.Read())
             {
-                result.Add(r.GetString(r.GetOrdinal("CAPTION")));
+
+                TagData t = new TagData();
+                t.type = r.GetInt32(r.GetOrdinal("TYPE"));
+                t.name = r.GetString(r.GetOrdinal("NAME"));
+                t.caption = r.GetString(r.GetOrdinal("CAPTION"));
+                result.Add(t);
             }
 
             r.Close();
-            return result;
+            return result.ToArray();
         }
 
-        public Movie GetMovieData(string fname)
+
+
+        public static bool CheckMovie(string name)
+        {
+            string sql = "SELECT * FROM MOVIES WHERE NAME = @name";
+            MySqlParameter[] paramarr = { new MySqlParameter("@name", name) };
+            var r = MySqlHelper.ExecuteScalar(sql, CommandType.Text, paramarr);
+            return r == null;
+        }
+
+
+        public string[] GetNullMovies()
+        {
+            string sql = "SELECT * FROM MOVIES WHERE TITLE = '暂无'";
+            var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, null);
+            List<string> result = new List<string>();
+
+            while (r.Read())
+            {
+                result.Add(r.GetString(r.GetOrdinal("FNAME")));
+            }
+
+            r.Close();
+            return result.ToArray();
+        }
+
+
+        public void UpdateMovie(Movie md)
+        {
+
+            string sql = "DELETE FROM TAGSMAP WHERE MID = @ID";
+            MySqlHelper.ExecuteNonQuery(sql, CommandType.Text, new MySqlParameter("@id", md.id));
+
+            foreach (var t in md.tags)
+            {
+                int tid = CreateTag(0, t);
+                var i = CreateTagsMap(md.id, tid);
+            }
+
+            foreach (var t in md.customtags)
+            {
+                int tid = CreateTag(1, t);
+                var i = CreateTagsMap(md.id, tid);
+            }
+
+            foreach (var s in md.stars)
+            {
+                int sid = CreateTag(2, s);
+                var i = CreateTagsMap(md.id, sid);
+            }
+
+
+            sql = "UPDATE MOVIES SET CODE = @code, TITLE = @title, TAGS = @tags, STARS = @stars, COVER = @cover WHERE NAME = @name";
+            MySqlParameter cover = new MySqlParameter();
+            cover.ParameterName = "@cover";
+            cover.MySqlDbType = MySqlDbType.VarBinary;
+            cover.Value = md.cover.ToArray();
+            MySqlParameter[] paramarr = new MySqlParameter[6];
+            paramarr[0] = new MySqlParameter("@code", md.code);
+            paramarr[1] = new MySqlParameter("@title", md.title);
+            paramarr[2] = new MySqlParameter("@tags", string.Join("|", md.tags));
+            paramarr[3] = new MySqlParameter("@stars", string.Join("|", md.stars));
+            paramarr[4] = cover;
+            paramarr[5] = new MySqlParameter("@name", md.name);
+            MySqlHelper.ExecuteNonQuery(sql, CommandType.Text, paramarr);
+        }
+
+
+
+
+
+        public void DeleteMovie(int id)
+        {
+            string sql = "DELETE MOVIES, TAGSMAP FROM MOVIES LEFT JOIN TAGSMAP ON MOVIES.ID = TAGSMAP.MID WHERE MOVIES.ID = @ID";
+            MySqlHelper.ExecuteNonQuery(sql, CommandType.Text, new MySqlParameter("@id", id));
+        }
+
+
+
+        public static void SaveMovies()
+        {
+
+            lock (MovieList)
+            {
+                Hashtable hs = new Hashtable();
+                string sql = "INSERT INTO MOVIES (TYPE, CODE, TITLE, TAGS, STARS, COVER, NAME, FNAME) VALUES (@type, @code, @title, @tags, @stars, @cover, @name, @fname)";
+
+                foreach (var m in MovieList)
+                {
+                    MySqlParameter cover = new MySqlParameter();
+                    cover.ParameterName = "@cover";
+                    cover.MySqlDbType = MySqlDbType.VarBinary;
+                    cover.Value = m.cover.ToArray();
+                    MySqlParameter[] paramarr = new MySqlParameter[8];
+                    paramarr[0] = new MySqlParameter("@type", m.type);
+                    paramarr[1] = new MySqlParameter("@code", m.code);
+                    paramarr[2] = new MySqlParameter("@title", m.title);
+                    paramarr[3] = new MySqlParameter("@tags", string.Join("|", m.tags));
+                    paramarr[4] = new MySqlParameter("@stars", string.Join("|", m.stars));
+                    paramarr[5] = cover;
+                    paramarr[6] = new MySqlParameter("@name", m.name);
+                    paramarr[7] = new MySqlParameter("@fname", m.fname);
+                    hs.Add(m.fname, paramarr);
+                }
+
+                MySqlHelper.ExecuteNonQuery(sql, hs);
+            }
+
+
+        }
+
+
+
+
+        public Movie DownloadMovieData(string fname)
         {
             Movie md = new Movie(fname);
             md.code = GetCid(md.name);
@@ -591,7 +707,6 @@ namespace LocalSearcher
 
 
         }
-
 
         public bool CTRHttp()
         {
@@ -716,93 +831,6 @@ namespace LocalSearcher
 
 
         }
-
-
-
-        public static bool CheckMovie(string name)
-        {
-            string sql = "SELECT * FROM MOVIES WHERE NAME = @name";
-            MySqlParameter[] paramarr = { new MySqlParameter("@name", name) };
-            var r = MySqlHelper.ExecuteScalar(sql, CommandType.Text, paramarr);
-            return r == null;
-        }
-
-
-        public string[] GetNullMovies()
-        {
-            string sql = "SELECT * FROM MOVIES WHERE TITLE = '暂无'";
-            var r = MySqlHelper.ExecuteReader(sql, CommandType.Text, null);
-            List<string> result = new List<string>();
-
-            while (r.Read())
-            {
-                result.Add(r.GetString(r.GetOrdinal("FNAME")));
-            }
-
-            r.Close();
-            return result.ToArray();
-        }
-
-
-        public void UpdateMovie(Movie md)
-        {
-            string sql = "UPDATE MOVIES SET CODE = @code, TITLE = @title, TAGS = @tags, STARS = @stars, COVER = @cover WHERE NAME = @name";
-            MySqlParameter cover = new MySqlParameter();
-            cover.ParameterName = "@cover";
-            cover.MySqlDbType = MySqlDbType.VarBinary;
-            cover.Value = md.cover.ToArray();
-            MySqlParameter[] paramarr = new MySqlParameter[6];
-            paramarr[0] = new MySqlParameter("@code", md.code);
-            paramarr[1] = new MySqlParameter("@title", md.title);
-            paramarr[2] = new MySqlParameter("@tags", string.Join("|", md.tags));
-            paramarr[3] = new MySqlParameter("@stars", string.Join("|", md.stars));
-            paramarr[4] = cover;
-            paramarr[5] = new MySqlParameter("@name", md.name);
-            MySqlHelper.ExecuteNonQuery(sql, CommandType.Text, paramarr);
-        }
-
-
-        public static void SaveMovieData()
-        {
-
-            lock (MovieList)
-            {
-                Hashtable hs = new Hashtable();
-                string sql = "INSERT INTO MOVIES (TYPE, CODE, TITLE, TAGS, STARS, COVER, NAME, FNAME) VALUES (@type, @code, @title, @tags, @stars, @cover, @name, @fname)";
-
-                foreach (var m in MovieList)
-                {
-                    MySqlParameter cover = new MySqlParameter();
-                    cover.ParameterName = "@cover";
-                    cover.MySqlDbType = MySqlDbType.VarBinary;
-                    cover.Value = m.cover.ToArray();
-                    MySqlParameter[] paramarr = new MySqlParameter[8];
-                    paramarr[0] = new MySqlParameter("@type", m.type);
-                    paramarr[1] = new MySqlParameter("@code", m.code);
-                    paramarr[2] = new MySqlParameter("@title", m.title);
-                    paramarr[3] = new MySqlParameter("@tags", string.Join("|", m.tags));
-                    paramarr[4] = new MySqlParameter("@stars", string.Join("|", m.stars));
-                    paramarr[5] = cover;
-                    paramarr[6] = new MySqlParameter("@name", m.name);
-                    paramarr[7] = new MySqlParameter("@fname", m.fname);
-                    hs.Add(m.fname, paramarr);
-                }
-
-                MySqlHelper.ExecuteNonQuery(sql, hs);
-            }
-
-
-
-
-
-
-        }
-
-
-
-
-
-
 
 
         private void ExplorerForm_Resize(object sender, EventArgs e)
@@ -1215,8 +1243,8 @@ namespace LocalSearcher
 
                 lock (FileCache)
                 {
-                    var cache = Engine.GetAllFilesAndDirectories();
-                    FileCache = cache.Where(f => f.FullFileName.ToUpper().Contains("AV\\1\\") && (f.FileName.ToUpper().Contains(".MP4") || f.FileName.ToUpper().Contains(".MKV") || f.FileName.ToUpper().Contains(".AVI") || f.FileName.ToUpper().Contains(".WMV"))).OrderBy(f => f.FileName).ToList();
+                    var cache = Everything.GetFiles("AV\\1\\");
+                    FileCache = cache.Where(f => (f.FileName.ToUpper().Contains(".MP4") || f.FileName.ToUpper().Contains(".MKV") || f.FileName.ToUpper().Contains(".AVI") || f.FileName.ToUpper().Contains(".WMV"))).OrderBy(f => f.FileName).ToList();
 
                 }
 
@@ -1238,46 +1266,159 @@ namespace LocalSearcher
 
         private void btnback_Click(object sender, EventArgs e)
         {
-            GetMoviesList(1, CurrentPage - 1, "暂无");
+            GetMoviesList(searchtype, searchpage - 1, searchword);
         }
 
         private void btnnext_Click(object sender, EventArgs e)
         {
-            GetMoviesList(1, CurrentPage + 1, "暂无");
+            GetMoviesList(searchtype, searchpage + 1, searchword);
         }
 
         private void tbxpath_TextChanged(object sender, EventArgs e)
         {
-            GetMoviesList(1, 1, tbxsearch.Text);
+
         }
 
         private void lvFile_ItemMouseHover(object sender, ListViewItemMouseHoverEventArgs e)
         {
-            ToolTip toolTip = new ToolTip();
 
+            ToolTip tt = new ToolTip();
             ListItemTag tag = (ListItemTag)e.Item.Tag;
             var fname = Path.GetFileName(tag.fullname);
             var cover = imageList.Images[imageList.Images.IndexOfKey(fname)];
             string tip = "";
 
-            foreach(var t in tag.tags)
+
+            foreach (var t in tag.tags)
             {
                 tip += t.caption + " ";
             }
 
+            tt.UseFading = false;
+            tt.AutoPopDelay = 5000;
+            tt.InitialDelay = 0;
+            tt.ReshowDelay = 0;
+            tt.SetToolTip((e.Item).ListView, tip);
 
-            toolTip.AutoPopDelay = 5000;
-            toolTip.InitialDelay = 0;
-            toolTip.ReshowDelay = 0;
-
-            toolTip.SetToolTip((e.Item).ListView, tip);
-           
 
         }
 
         private void tvtags_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
         {
             tbxsearch.Text = e.Node.Text;
+
+            Keys k = new Keys();
+            k = Keys.Enter;
+
+            var ke = new KeyEventArgs(k);
+            tbxsearch_KeyPress(sender, new KeyPressEventArgs('\r'));
+        }
+
+        private void tbxsearch_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == 13)
+            {
+                GetMoviesList(searchtype, 1, tbxsearch.Text);
+            }
+        }
+
+        private void miopen_Click(object sender, EventArgs e)
+        {
+            if (lvFile.SelectedIndices.Count == 0)
+                return;
+
+            try
+            {
+                ListItemTag tag = (ListItemTag)lvFile.SelectedItems[0].Tag;
+                System.Diagnostics.Process.Start(tag.fullname);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+
+        private void miopenpath_Click(object sender, EventArgs e)
+        {
+            if (lvFile.SelectedIndices.Count == 0)
+                return;
+
+            try
+            {
+                ListItemTag tag = (ListItemTag)lvFile.SelectedItems[0].Tag;
+                System.Diagnostics.Process.Start("Explorer", "/select," + tag.fullname);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+
+        private void micopycid_Click(object sender, EventArgs e)
+        {
+            if (lvFile.SelectedIndices.Count == 0)
+                return;
+
+            try
+            {
+                ListItemTag tag = (ListItemTag)lvFile.SelectedItems[0].Tag;
+                Clipboard.SetText(tag.code);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+
+        }
+
+        private void midelete_Click(object sender, EventArgs e)
+        {
+            if (lvFile.SelectedIndices.Count == 0)
+                return;
+
+            try
+            {
+
+                if (MessageBox.Show(this, "确定要永久删除此文件和数据吗？", "警告", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) == DialogResult.OK)
+                {
+                    ListItemTag tag = (ListItemTag)lvFile.SelectedItems[0].Tag;
+
+                    if (File.Exists(tag.fullname))
+                    {
+                        File.Delete(tag.fullname);
+                    }
+
+                    DeleteMovie(tag.id);
+                    GetMoviesList(searchtype, searchpage, searchword);
+                }
+
+
+
+
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+
+        private void miedit_Click(object sender, EventArgs e)
+        {
+            if (lvFile.SelectedIndices.Count == 0)
+                return;
+
+            try
+            {
+                ListItemTag tag = (ListItemTag)lvFile.SelectedItems[0].Tag;
+                var md = MovieList.Where(m => m.fname == tag.fullname).FirstOrDefault();
+                var ef = new EditForm(this, md);
+                ef.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
         }
 
         private void menuItem3_Click(object sender, EventArgs e)
@@ -1306,7 +1447,7 @@ namespace LocalSearcher
 
                     if (CheckMovie(f.FileName))
                     {
-                        var md = GetMovieData(f.FullFileName);
+                        var md = DownloadMovieData(f.FullPathName);
                         md.type = 1;
                         MovieList.Add(md);
                         SyncContext.Send(SetStatus, string.Format("正在处理文件{0}...", md.fname));
@@ -1321,9 +1462,9 @@ namespace LocalSearcher
                 }
 
                 SyncContext.Send(SetStatus, "正在存储数据");
-                SaveMovieData();
-                GetMoviesList(1, 1, "暂无");
-                UpdateMoviesData();
+                SaveMovies();
+                GetMoviesList(1, 1, "");
+                FixMoviesData();
                 SyncContext.Send(SetStatus, "缓存完成");
             });
 
@@ -1349,7 +1490,7 @@ namespace LocalSearcher
                 foreach (var n in namelist)
                 {
                     SyncContext.Send(SetStatus, string.Format("正在处理数据{0}...", Path.GetFileName(n)));
-                    var md = GetMovieData(n);
+                    var md = DownloadMovieData(n);
                     UpdateMovie(md);
                     pcount += 1;
                     int percent = Convert.ToInt32(((double)pcount / (double)namelist.Length) * 100);
@@ -1357,7 +1498,7 @@ namespace LocalSearcher
                 }
 
 
-                UpdateMoviesData();
+                FixMoviesData();
                 SyncContext.Send(SetStatus, "修复完成");
             });
 
